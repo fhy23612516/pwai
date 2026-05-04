@@ -790,7 +790,7 @@ function renderAssist(defaultBossId = "") {
       boss_id: payload.boss_id,
       situation: payload.situation,
       emotion: payload.emotion,
-      suggestion: output.strategy,
+      suggestion: output.currentStrategy,
       recommended_reply: output.reply,
       created_at: today(),
     });
@@ -1008,7 +1008,7 @@ function generatePrep(payload) {
   const style = payload.style || state.persona.style;
   const opening = makeOpening(boss, payload.game, style);
   return {
-    strategy: `${boss.nickname || "老板"}偏${splitList(boss.customer_type).join("、") || "未记录"}，本单以“${payload.goal || "轻松体验"}”为主。先给空间，再用游戏节奏自然带起互动。`,
+    serviceStrategy: `${boss.nickname || "老板"}偏${splitList(boss.customer_type).join("、") || "未记录"}，本单以“${payload.goal || "轻松体验"}”为主。先给空间，再用游戏节奏自然带起互动。`,
     opening,
     topics: [
       "上次订单里的名场面或手感变化",
@@ -1050,7 +1050,7 @@ function generateAssist(payload) {
 
   return {
     judgment,
-    strategy,
+    currentStrategy: strategy,
     reply,
     gentle: "没事啦，刚才确实不好打。你先放松点，我陪你慢慢找手感。",
     lively: "这两把节奏多少有点乱，下一把咱们把场子找回来。",
@@ -1108,12 +1108,12 @@ function generateContactMessage(boss) {
 
 function renderOutput(output) {
   const items = [
-    ["本单服务策略", output.strategy],
+    ["本单服务策略", output.serviceStrategy],
     ["开场话术", output.opening],
     ["推荐聊天话题", output.topics],
     ["老板雷点提醒", output.warning],
     ["情绪判断", output.judgment],
-    ["当前最优策略", output.strategy],
+    ["当前最优策略", output.currentStrategy],
     ["推荐话术", output.reply],
     ["温柔版本", output.gentle],
     ["活泼版本", output.lively],
