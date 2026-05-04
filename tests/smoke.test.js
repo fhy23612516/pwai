@@ -107,7 +107,7 @@ function loadAppContext() {
   vm.createContext(context);
   vm.runInContext(
     `${code}
-globalThis.__testApi = { state, aiKinds, aiOutputSchemas, generateAiOutput, generateAiOutputAsync, normalizeAiOutput, generatePrep, generateAssist, generateReview, renderOutput, normalizeImportedState, mergeBossProfileSuggestion, filterOrders, bossMemoryText, normalizeBoss };`,
+globalThis.__testApi = { state, aiKinds, aiOutputSchemas, generateAiOutput, generateAiOutputAsync, normalizeAiOutput, generatePrep, generateAssist, generateReview, renderOutput, normalizeImportedState, mergeBossProfileSuggestion, filterOrders, bossMemoryText, normalizeBoss, relationshipBoundarySignal, formatProfileUpdate };`,
     context,
     { filename: appPath },
   );
@@ -239,6 +239,9 @@ test("deployment files expose start script and health check", () => {
   assert.match(server, /memory_openers/);
   assert.match(server, /不能只替换游戏名或老板名/);
   assert.match(server, /不要只做关键词替换/);
+  assert.match(server, /关系边界风险/);
+  assert.match(server, /谈恋爱/);
+  assert.match(server, /线下见面/);
   assert.match(server, /OPENAI_API_KEY/);
   assert.match(server, /process\.env\.PORT/);
   assert.match(deployDoc, /npm start/);
@@ -436,6 +439,16 @@ test("AI quality guidance avoids thin generic output", () => {
   assert.ok(review.performance.length > 80);
 });
 
+test("AI contract documents relationship boundary analysis", () => {
+  const readme = read(path.join(root, "README.md"));
+  const contract = read(aiContractPath);
+  const changelog = read(path.join(root, "CHANGELOG.md"));
+
+  for (const pattern of [/关系边界风险/, /谈恋爱/, /暧昧/, /私下联系方式|私人联系方式|私联/, /线下见面/, /memory_risks/]) {
+    assert.match(`${readme}\n${contract}\n${changelog}`, pattern);
+  }
+});
+
 test("AI simulators respond to form attributes instead of keyword swaps", () => {
   const context = loadAppContext();
   const bossId = context.state.bosses[0].id;
@@ -517,6 +530,77 @@ test("AI simulators respond to form attributes instead of keyword swaps", () => 
   assert.equal(renewedReview.repurchase, "高");
   assert.match(complaintReview.summary, /出现冷场|有不满|情绪偏上头/);
   assert.match(renewedReview.summary, /没有明显冷场|已续单|情绪正向/);
+});
+
+test("AI simulators analyze relationship boundary memory", () => {
+  const context = loadAppContext();
+  const bossId = "boss-boundary-test";
+  context.state.bosses.push({
+    id: bossId,
+    nickname: "边界老板",
+    games: "瓦罗兰特",
+    customer_type: ["倾诉型"],
+    preferred_style: "温柔自然",
+    disliked_style: "太冷淡",
+    favorite_topics: "游戏节奏",
+    avoid_topics: "现实隐私、感情问题",
+    emotion_pattern: "聊开心后容易推进关系",
+    memory_direction: "老板之前说想和我谈恋爱，后续需要温和设边界。",
+    memory_openers: "",
+    memory_effective_lines: "",
+    memory_risks: "",
+    memory_next_probe: "观察他是否继续提线下见面或加微信。",
+    repurchase_level: "中",
+    last_order_at: "2026-05-04",
+    notes: "不要把关系话题当普通偏好。",
+  });
+
+  const signal = context.relationshipBoundarySignal(context.state.bosses.at(-1));
+  assert.equal(signal.label, "关系边界风险");
+  assert.equal(signal.source, "老板记忆");
+
+  const prep = context.generatePrep({
+    boss_id: bossId,
+    game: "瓦罗兰特",
+    goal: "轻松上分",
+    duration: "2 小时",
+    emotion: "开心",
+    style: "温柔陪伴型",
+  });
+  assert.match(`${prep.serviceStrategy}\n${prep.warning}\n${prep.opening}`, /关系边界风险|不承诺恋爱|转回游戏/);
+  assert.ok(prep.avoid.some((item) => /谈恋爱|私人微信|线下/.test(item)));
+
+  const assist = context.generateAssist({
+    boss_id: bossId,
+    situation: "老板又说想和我谈恋爱，还想线下见面。",
+    emotion: "开心",
+    game_state: "准备进攻下一小局",
+    reply_style: "温柔陪伴型",
+    soft: "是",
+    humor: "否",
+  });
+  assert.match(`${assist.judgment}\n${assist.currentStrategy}\n${assist.reply}\n${assist.note}`, /关系边界风险|不推进关系|先把这把|转回游戏|游戏和服务边界/);
+  assert.ok(assist.avoid.some((item) => /谈恋爱|线下|感情刺激消费/.test(item)));
+
+  const review = context.generateReview({
+    boss_id: bossId,
+    game: "瓦罗兰特",
+    duration: "2 小时",
+    result: "整体顺利",
+    boss_emotion: "开心",
+    had_silence: "否",
+    renewed: "否",
+    complaint: "否",
+    important_notes: "老板想和我谈恋爱，还提到加微信和线下见面。",
+    good_points: "有及时转回游戏。",
+    improvements: "下次更早设边界。",
+  });
+  assert.match(review.summary, /关系边界风险|不能只记录/);
+  assert.match(review.profileUpdate.memory_direction, /温和边界|转回游戏/);
+  assert.match(review.profileUpdate.memory_risks, /不要承诺恋爱|私人联系方式|线下见面/);
+  assert.match(review.profileUpdate.memory_next_probe, /持续推进恋爱|私联|线下/);
+  assert.match(`${review.nextContact}\n${review.performance}`, /不交换私人联系方式|边界处理/);
+  assert.match(context.formatProfileUpdate(review.profileUpdate).join("\n"), /沟通方向|风险提醒|下次观察/);
 });
 
 test("AI adapter normalizes outputs for all supported scenarios", () => {

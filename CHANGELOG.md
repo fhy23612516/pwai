@@ -16,6 +16,17 @@ git checkout v0.12.0
 
 生产环境建议优先用 `git revert <commit>` 回滚问题提交，不建议直接 `git reset --hard`。
 
+## v0.15.0 - 关系边界记忆分析
+
+提交：`v0.15.0` tag 指向的 `fix: analyze relationship boundary memory`
+
+- 新增关系边界风险识别，覆盖谈恋爱、暧昧、私联、线下见面、奔现等信号
+- 开单准备会把老板记忆里的关系信号分析为边界风险，并给出转回游戏体验的策略
+- 实时辅助会在当前局势或老板记忆触发边界风险时，输出温和但不升级关系的话术
+- 订单复盘会把关系边界写入 `memory_direction`、`memory_risks`、`memory_next_probe`，避免只存普通备注
+- 服务端 prompt 要求远程模型不能把恋爱/私联/线下信号当成普通偏好
+- 自动测试覆盖本地生成、远程 prompt 和 AI 契约文档
+
 ## v0.14.0 - 表单属性影响 AI 生成
 
 提交：`v0.14.0` tag 指向的 `fix: make ai use form attributes`

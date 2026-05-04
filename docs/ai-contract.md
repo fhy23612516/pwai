@@ -94,6 +94,8 @@ OPENAI_MODEL_REVIEW=deepseek-reasoner
 - 开单和复盘要给 2-3 条可直接复制的话术，实时辅助至少给稳妥、温柔、活泼、技术四种表达
 - 如果 `boss_profile` 有老板记忆字段，应优先参考记忆，而不是每次重新泛化判断
 - 必须让表单属性实质影响输出，不能只替换游戏名、老板名或关键词
+- 如果老板记忆、`important_notes` 或当前局势出现“谈恋爱、暧昧、喜欢你、私下联系方式、线下见面、奔现”等内容，必须识别为关系边界风险，不能只当普通记忆记录
+- 关系边界风险要输出温和但明确的策略：不承诺恋爱、不升级暧昧、不交换私人联系方式、不承诺线下见面，并把话题转回游戏或服务体验
 
 ## 字段影响要求
 
@@ -101,6 +103,16 @@ OPENAI_MODEL_REVIEW=deepseek-reasoner
 - 实时辅助必须参考 `situation`、`emotion`、`game_state`、`reply_style`、`soft`、`humor`
 - 订单复盘必须参考 `duration`、`result`、`boss_emotion`、`had_silence`、`renewed`、`complaint`、`important_notes`、`good_points`、`improvements`
 - 如果这些字段变化，输出里的策略、话术、提醒至少要有两处明显变化
+
+## 关系边界风险
+
+当老板档案或复盘内容里出现恋爱、暧昧、私联、线下见面等信号时，AI 必须把它作为边界风险分析：
+
+- `prep.serviceStrategy` 要提醒这是关系边界风险，并说明本单如何接住后转回游戏
+- `assist.judgment` 和 `assist.currentStrategy` 要判断当前是否在推进关系，给出可直接复制的边界话术
+- `review.profileUpdate.memory_direction` 要写后续沟通方向，例如“保持温和边界，关系话题只轻轻接住后转回游戏/服务体验”
+- `review.profileUpdate.memory_risks` 要写清不要恋爱承诺、不要暧昧升级、不要私联、不要线下承诺
+- `review.profileUpdate.memory_next_probe` 要记录下次观察他是否继续推进关系或私联
 
 ## 开单准备 `prep`
 
