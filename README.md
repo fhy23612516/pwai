@@ -63,6 +63,8 @@ GitHub 推送和服务器部署流程见 [docs/github-and-deploy.md](./docs/gith
 
 服务器配置模板见 [deploy](./deploy)。
 
+版本记录见 [CHANGELOG.md](./CHANGELOG.md)。
+
 ## 测试方式
 
 运行烟测脚本：
