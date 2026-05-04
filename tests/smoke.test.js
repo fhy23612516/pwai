@@ -96,7 +96,7 @@ function loadAppContext() {
   vm.createContext(context);
   vm.runInContext(
     `${code}
-globalThis.__testApi = { state, generatePrep, generateAssist, generateReview, renderOutput };`,
+globalThis.__testApi = { state, generatePrep, generateAssist, generateReview, renderOutput, normalizeImportedState };`,
     context,
     { filename: appPath },
   );
@@ -127,7 +127,7 @@ test("index.html loads the app assets", () => {
 
 test("navigation covers the MVP workflow", () => {
   const app = read(appPath);
-  for (const route of ["home", "bosses", "persona", "prep", "assist", "review"]) {
+  for (const route of ["home", "bosses", "persona", "prep", "assist", "review", "library", "settings"]) {
     assert.match(app, new RegExp(`id: "${route}"`), `${route} route should be configured`);
   }
   for (const handler of [
@@ -140,6 +140,8 @@ test("navigation covers the MVP workflow", () => {
     "renderAssist",
     "renderReview",
     "renderReminders",
+    "renderLibrary",
+    "renderSettings",
   ]) {
     assert.match(app, new RegExp(`function ${handler}\\(`), `${handler} should exist`);
   }
@@ -151,6 +153,7 @@ test("local data model includes sample persona, bosses, orders, and assists", ()
   assert.match(app, /bosses:\s*\[/);
   assert.match(app, /orders:\s*\[/);
   assert.match(app, /assists:\s*\[/);
+  assert.match(app, /favorites:\s*\[/);
   assert.match(app, /阿辰/);
   assert.match(app, /南风/);
 });
@@ -213,6 +216,21 @@ test("rendered AI output contains copyable cards", () => {
   assert.match(html, /推荐聊天话题/);
   assert.match(html, /不建议说的话/);
   assert.match(html, /data-copy=/);
+  assert.match(html, /data-favorite-text=/);
+});
+
+test("imported state normalization keeps required collections", () => {
+  const context = loadAppContext();
+  const normalized = context.normalizeImportedState({
+    persona: { nickname: "测试" },
+    bosses: [],
+    orders: [],
+    assists: [],
+  });
+
+  assert.equal(normalized.persona.nickname, "测试");
+  assert.ok(Array.isArray(normalized.favorites));
+  assert.throws(() => context.normalizeImportedState({ bosses: {} }), /bosses 格式错误/);
 });
 
 test("styles include mobile-first safeguards", () => {
@@ -221,6 +239,7 @@ test("styles include mobile-first safeguards", () => {
   assert.match(css, /@media \(max-width: 560px\)/);
   assert.match(css, /overflow-x: auto/);
   assert.match(css, /grid-template-columns: 1fr/);
+  assert.match(css, /\.mini-actions/);
 });
 
 let passed = 0;

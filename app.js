@@ -7,6 +7,8 @@ const navItems = [
   { id: "prep", label: "开单", icon: "S", title: "开单准备", eyebrow: "订单开始前" },
   { id: "assist", label: "求助", icon: "A", title: "实时辅助", eyebrow: "订单进行中" },
   { id: "review", label: "复盘", icon: "R", title: "订单复盘", eyebrow: "订单结束后" },
+  { id: "library", label: "话术", icon: "L", title: "话术库", eyebrow: "常用收藏" },
+  { id: "settings", label: "设置", icon: "T", title: "设置", eyebrow: "数据管理" },
 ];
 
 const routeMeta = {
@@ -129,6 +131,7 @@ const defaultState = {
     },
   ],
   assists: [],
+  favorites: [],
 };
 
 let state = loadState();
@@ -297,7 +300,7 @@ function renderHome() {
             <button class="secondary-button" type="button" data-route="assist">实时求助</button>
             <button class="secondary-button" type="button" data-route="review">写订单复盘</button>
             <button class="ghost-button" type="button" data-route="persona">陪玩人设</button>
-            <button class="ghost-button" type="button" data-route="bosses">老板列表</button>
+            <button class="ghost-button" type="button" data-route="library">话术库</button>
           </div>
         </div>
       </section>
@@ -955,6 +958,161 @@ function renderReminders() {
   bindCopyButtons();
 }
 
+function renderLibrary() {
+  appView.innerHTML = `
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h3 class="card-title">常用话术收藏</h3>
+          <p class="card-subtitle">从 AI 输出卡片收藏，后续可直接复制使用。</p>
+        </div>
+        <button class="danger-button compact" type="button" data-clear-favorites ${state.favorites.length ? "" : "disabled"}>清空收藏</button>
+      </div>
+      <div class="card-body">
+        ${
+          state.favorites.length
+            ? `<div class="list">${state.favorites.map(renderFavoriteCard).join("")}</div>`
+            : emptyState("暂无收藏话术", "在开单准备、实时辅助、订单复盘的输出卡片里点击“收藏”。")
+        }
+      </div>
+    </section>
+  `;
+
+  bindCopyButtons();
+  appView.querySelectorAll("[data-delete-favorite]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.favorites = state.favorites.filter((item) => item.id !== button.dataset.deleteFavorite);
+      saveState();
+      toastMessage("收藏已删除");
+      renderLibrary();
+    });
+  });
+  appView.querySelector("[data-clear-favorites]")?.addEventListener("click", () => {
+    if (!window.confirm("确认清空全部收藏话术？")) return;
+    state.favorites = [];
+    saveState();
+    toastMessage("收藏已清空");
+    renderLibrary();
+  });
+}
+
+function renderFavoriteCard(item) {
+  return `
+    <article class="order-card">
+      <div class="order-card-head">
+        <div>
+          <h3>${escapeHtml(item.title || "常用话术")}</h3>
+          <div class="meta">收藏时间：${escapeHtml(item.created_at || "未记录")}</div>
+        </div>
+      </div>
+      <div>${escapeHtml(item.text)}</div>
+      <div class="button-row">
+        <button class="secondary-button compact" type="button" data-copy="${escapeHtml(item.text)}">复制话术</button>
+        <button class="danger-button compact" type="button" data-delete-favorite="${item.id}">删除</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderSettings() {
+  const exportText = JSON.stringify(state, null, 2);
+  appView.innerHTML = `
+    <div class="grid two">
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">数据概览</h3>
+            <p class="card-subtitle">当前所有数据都保存在本机浏览器。</p>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="grid auto">
+            ${metricMini("老板档案", state.bosses.length)}
+            ${metricMini("历史订单", state.orders.length)}
+            ${metricMini("辅助记录", state.assists.length)}
+            ${metricMini("收藏话术", state.favorites.length)}
+          </div>
+          <div class="button-row" style="margin-top: 16px;">
+            <button class="secondary-button" type="button" data-copy="${escapeHtml(exportText)}">复制备份 JSON</button>
+            <button class="danger-button" type="button" data-clear-all>清空本地数据</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">导入备份</h3>
+            <p class="card-subtitle">粘贴之前复制的 JSON，导入会覆盖当前浏览器数据。</p>
+          </div>
+        </div>
+        <div class="card-body">
+          <label class="field full">
+            <span>备份 JSON</span>
+            <textarea id="import-json" placeholder="粘贴备份 JSON"></textarea>
+          </label>
+          <p class="hint">导入前建议先复制一份当前备份。不要导入来源不明的数据。</p>
+          <div class="button-row" style="margin-top: 16px;">
+            <button class="primary-button" type="button" data-import-json>导入数据</button>
+            <button class="ghost-button" type="button" data-route="home">返回首页</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  `;
+
+  bindRouteButtons();
+  bindCopyButtons();
+  appView.querySelector("[data-import-json]").addEventListener("click", () => {
+    const raw = appView.querySelector("#import-json").value.trim();
+    if (!raw) {
+      toastMessage("请先粘贴备份 JSON");
+      return;
+    }
+    try {
+      const imported = normalizeImportedState(JSON.parse(raw));
+      if (!window.confirm("确认导入？当前本地数据会被覆盖。")) return;
+      state = imported;
+      saveState();
+      toastMessage("数据已导入");
+      renderSettings();
+    } catch (error) {
+      toastMessage(`导入失败：${error.message}`);
+    }
+  });
+  appView.querySelector("[data-clear-all]").addEventListener("click", () => {
+    if (!window.confirm("确认清空本地数据并恢复示例？")) return;
+    state = structuredClone(defaultState);
+    saveState();
+    toastMessage("已恢复示例数据");
+    renderSettings();
+  });
+}
+
+function metricMini(label, value) {
+  return `
+    <article class="boss-card">
+      <div class="meta">${escapeHtml(label)}</div>
+      <strong style="font-size: 28px;">${escapeHtml(value)}</strong>
+    </article>
+  `;
+}
+
+function normalizeImportedState(input) {
+  if (!input || typeof input !== "object") {
+    throw new Error("不是有效对象");
+  }
+  const next = { ...structuredClone(defaultState), ...input };
+  if (!Array.isArray(next.bosses)) throw new Error("bosses 格式错误");
+  if (!Array.isArray(next.orders)) throw new Error("orders 格式错误");
+  if (!Array.isArray(next.assists)) throw new Error("assists 格式错误");
+  if (!Array.isArray(next.favorites)) next.favorites = [];
+  if (!next.persona || typeof next.persona !== "object") {
+    throw new Error("persona 格式错误");
+  }
+  return next;
+}
+
 function getReminders() {
   return state.bosses
     .map((boss) => {
@@ -1144,7 +1302,10 @@ function outputCard(title, value) {
     <article class="output-card">
       <header>
         <h4>${escapeHtml(title)}</h4>
-        <button class="copy-button" type="button" data-copy="${escapeHtml(copyText)}">复制</button>
+        <div class="mini-actions">
+          <button class="copy-button" type="button" data-copy="${escapeHtml(copyText)}">复制</button>
+          <button class="copy-button" type="button" data-favorite-title="${escapeHtml(title)}" data-favorite-text="${escapeHtml(copyText)}">收藏</button>
+        </div>
       </header>
       ${content}
     </article>
@@ -1198,6 +1359,30 @@ function bindCopyButtons() {
       }
     });
   });
+
+  appView.querySelectorAll("[data-favorite-text]").forEach((button) => {
+    button.addEventListener("click", () => {
+      addFavorite(button.dataset.favoriteTitle, button.dataset.favoriteText);
+    });
+  });
+}
+
+function addFavorite(title, text) {
+  const cleanText = String(text || "").trim();
+  if (!cleanText) return;
+  const exists = state.favorites.some((item) => item.text === cleanText);
+  if (exists) {
+    toastMessage("这条话术已收藏");
+    return;
+  }
+  state.favorites.unshift({
+    id: id("favorite"),
+    title: title || "常用话术",
+    text: cleanText,
+    created_at: today(),
+  });
+  saveState();
+  toastMessage("已收藏到话术库");
 }
 
 function render() {
@@ -1217,6 +1402,8 @@ function render() {
   else if (base === "assist") renderAssist(action);
   else if (base === "review") renderReview(action);
   else if (base === "reminders") renderReminders();
+  else if (base === "library") renderLibrary();
+  else if (base === "settings") renderSettings();
   else renderHome();
 }
 

@@ -46,6 +46,12 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+  transform: none;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
@@ -515,6 +521,13 @@ button {
   font-size: 12px;
 }
 
+.mini-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 .empty-state {
   display: grid;
   place-items: center;
@@ -611,7 +624,7 @@ button {
     display: grid;
     place-items: center;
     gap: 3px;
-    flex: 0 0 58px;
+    flex: 0 0 56px;
     min-height: 50px;
     padding: 6px 4px;
     font-size: 11px;
