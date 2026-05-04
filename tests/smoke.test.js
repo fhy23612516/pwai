@@ -1,0 +1,243 @@
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const vm = require("node:vm");
+
+const root = path.resolve(__dirname, "..");
+const appPath = path.join(root, "app.js");
+const indexPath = path.join(root, "index.html");
+const stylesPath = path.join(root, "styles.css");
+
+function read(filePath) {
+  return fs.readFileSync(filePath, "utf8");
+}
+
+function createDomStub() {
+  const elements = new Map();
+
+  function makeElement(selector = "") {
+    const element = {
+      selector,
+      dataset: {},
+      classList: {
+        add() {},
+        remove() {},
+      },
+      addEventListener() {},
+      querySelector() {
+        return makeElement();
+      },
+      querySelectorAll() {
+        return [];
+      },
+      innerHTML: "",
+      textContent: "",
+    };
+    elements.set(selector || `element-${elements.size}`, element);
+    return element;
+  }
+
+  const document = {
+    querySelector(selector) {
+      if (!elements.has(selector)) elements.set(selector, makeElement(selector));
+      return elements.get(selector);
+    },
+  };
+
+  return { document, elements };
+}
+
+function loadAppContext() {
+  const code = read(appPath);
+  const { document } = createDomStub();
+  const storage = new Map();
+  const context = {
+    console,
+    document,
+    localStorage: {
+      getItem(key) {
+        return storage.get(key) || null;
+      },
+      setItem(key, value) {
+        storage.set(key, String(value));
+      },
+    },
+    navigator: {
+      clipboard: {
+        writeText() {
+          return Promise.resolve();
+        },
+      },
+    },
+    window: {
+      location: { hash: "" },
+      addEventListener() {},
+      clearTimeout() {},
+      setTimeout() {
+        return 0;
+      },
+      confirm() {
+        return true;
+      },
+    },
+    structuredClone,
+    FormData,
+    Date,
+    Math,
+    String,
+    Array,
+    Object,
+    RegExp,
+    JSON,
+    Map,
+    Set,
+  };
+
+  vm.createContext(context);
+  vm.runInContext(
+    `${code}
+globalThis.__testApi = { state, generatePrep, generateAssist, generateReview, renderOutput };`,
+    context,
+    { filename: appPath },
+  );
+  return context.__testApi;
+}
+
+const tests = [];
+
+function test(name, fn) {
+  tests.push({ name, fn });
+}
+
+test("required static files exist and are not empty", () => {
+  for (const filePath of [indexPath, stylesPath, appPath]) {
+    const stats = fs.statSync(filePath);
+    assert.ok(stats.size > 0, `${path.basename(filePath)} should not be empty`);
+  }
+});
+
+test("index.html loads the app assets", () => {
+  const html = read(indexPath);
+  assert.match(html, /<div class="app-shell">/);
+  assert.match(html, /<link rel="stylesheet" href="\.\/styles\.css"/);
+  assert.match(html, /<script src="\.\/app\.js"><\/script>/);
+  assert.match(html, /id="app-view"/);
+  assert.match(html, /id="app-nav"/);
+});
+
+test("navigation covers the MVP workflow", () => {
+  const app = read(appPath);
+  for (const route of ["home", "bosses", "persona", "prep", "assist", "review"]) {
+    assert.match(app, new RegExp(`id: "${route}"`), `${route} route should be configured`);
+  }
+  for (const handler of [
+    "renderHome",
+    "renderBosses",
+    "renderBossDetail",
+    "renderBossForm",
+    "renderPersona",
+    "renderPrep",
+    "renderAssist",
+    "renderReview",
+    "renderReminders",
+  ]) {
+    assert.match(app, new RegExp(`function ${handler}\\(`), `${handler} should exist`);
+  }
+});
+
+test("local data model includes sample persona, bosses, orders, and assists", () => {
+  const app = read(appPath);
+  assert.match(app, /persona:\s*{/);
+  assert.match(app, /bosses:\s*\[/);
+  assert.match(app, /orders:\s*\[/);
+  assert.match(app, /assists:\s*\[/);
+  assert.match(app, /阿辰/);
+  assert.match(app, /南风/);
+});
+
+test("AI simulators return the fields expected by the renderer", () => {
+  const context = loadAppContext();
+  const bossId = context.state.bosses[0].id;
+
+  const prep = context.generatePrep({
+    boss_id: bossId,
+    game: "瓦罗兰特",
+    goal: "轻松上分",
+    style: "温柔陪伴型",
+  });
+  assert.equal(typeof prep.serviceStrategy, "string");
+  assert.equal(typeof prep.opening, "string");
+  assert.ok(Array.isArray(prep.topics));
+  assert.ok(Array.isArray(prep.avoid));
+
+  const assist = context.generateAssist({
+    boss_id: bossId,
+    situation: "老板输了两把，现在不怎么说话。",
+    emotion: "输游戏后烦躁",
+    humor: "否",
+  });
+  assert.equal(typeof assist.judgment, "string");
+  assert.equal(typeof assist.currentStrategy, "string");
+  assert.equal(typeof assist.reply, "string");
+  assert.ok(Array.isArray(assist.avoid));
+
+  const review = context.generateReview({
+    boss_id: bossId,
+    game: "瓦罗兰特",
+    result: "前期输了两把，后面赢了两把",
+    boss_emotion: "开心",
+    had_silence: "否",
+    renewed: "否",
+    complaint: "否",
+    good_points: "没有强行追问",
+    improvements: "下次多记录英雄偏好",
+  });
+  assert.equal(typeof review.summary, "string");
+  assert.equal(typeof review.profileUpdate, "string");
+  assert.equal(typeof review.nextOpening, "string");
+  assert.equal(typeof review.nextContact, "string");
+  assert.match(review.repurchase, /高|中|低/);
+});
+
+test("rendered AI output contains copyable cards", () => {
+  const context = loadAppContext();
+  const html = context.renderOutput({
+    serviceStrategy: "先降低聊天压力。",
+    opening: "老板今天还打瓦吗？",
+    topics: ["上次名场面", "今天想上分还是快乐"],
+    avoid: ["不要催单"],
+  });
+
+  assert.match(html, /本单服务策略/);
+  assert.match(html, /开场话术/);
+  assert.match(html, /推荐聊天话题/);
+  assert.match(html, /不建议说的话/);
+  assert.match(html, /data-copy=/);
+});
+
+test("styles include mobile-first safeguards", () => {
+  const css = read(stylesPath);
+  assert.match(css, /@media \(max-width: 920px\)/);
+  assert.match(css, /@media \(max-width: 560px\)/);
+  assert.match(css, /overflow-x: auto/);
+  assert.match(css, /grid-template-columns: 1fr/);
+});
+
+let passed = 0;
+
+for (const item of tests) {
+  try {
+    item.fn();
+    passed += 1;
+    console.log(`ok - ${item.name}`);
+  } catch (error) {
+    console.error(`not ok - ${item.name}`);
+    console.error(error);
+    process.exitCode = 1;
+    break;
+  }
+}
+
+if (process.exitCode !== 1) {
+  console.log(`${passed}/${tests.length} tests passed`);
+}
