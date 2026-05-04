@@ -2,7 +2,7 @@
 
 当前应用通过本地模板模拟 AI 输出。后续接真实模型时，页面只依赖 `generateAiOutput(kind, payload)` 返回的结构化对象。
 
-真实模型必须返回 JSON，不要返回 Markdown。所有话术都应短句优先，便于复制。
+真实模型必须返回 JSON，不要返回 Markdown。所有话术都应短句优先，便于复制。当前版本要求输出更像陪玩临场备忘：内容要具体、有判断条件、有多条可直接发的话术，避免只给一两句泛泛建议。
 
 网页和小程序后续共用服务端接口：
 
@@ -32,6 +32,7 @@ OPENAI_MODEL_REVIEW=
 AI_API_MODE=chat
 AI_TIMEOUT_MS=30000
 AI_HTTP_CLIENT=fetch
+OPENAI_MAX_OUTPUT_TOKENS=1200
 OPENAI_RESPONSE_FORMAT=json_object
 ```
 
@@ -49,6 +50,7 @@ OPENAI_REASONING_EFFORT=xhigh
 OPENAI_DISABLE_RESPONSE_STORAGE=true
 AI_TIMEOUT_MS=30000
 AI_HTTP_CLIENT=curl
+OPENAI_MAX_OUTPUT_TOKENS=1200
 OPENAI_RESPONSE_FORMAT=text
 ```
 
@@ -87,6 +89,9 @@ OPENAI_MODEL_REVIEW=deepseek-reasoner
 - 不生成过度暧昧或性暗示内容
 - 不伪装 AI 直接和老板聊天
 - 输出内容自然、克制、像真人能说出口
+- 少用“首先、其次、综上、情绪价值、破冰、建立连接、建议你可以”等模板词
+- 字符串字段可以用换行组织成多条短句，但不要输出 Markdown 列表
+- 开单和复盘要给 2-3 条可直接复制的话术，实时辅助至少给稳妥、温柔、活泼、技术四种表达
 
 ## 开单准备 `prep`
 

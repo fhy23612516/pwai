@@ -226,6 +226,11 @@ test("deployment files expose start script and health check", () => {
   assert.match(server, /--data-binary/);
   assert.match(server, /OPENAI_RESPONSE_FORMAT/);
   assert.match(server, /json_object/);
+  assert.match(server, /OPENAI_MAX_OUTPUT_TOKENS/);
+  assert.match(server, /getMaxOutputTokens/);
+  assert.match(server, /减少 AI 味/);
+  assert.match(server, /不要使用“首先、其次/);
+  assert.match(server, /场景细化要求/);
   assert.match(server, /OPENAI_API_KEY/);
   assert.match(server, /process\.env\.PORT/);
   assert.match(deployDoc, /npm start/);
@@ -249,6 +254,7 @@ test("versioned server config templates target the deployed service", () => {
   assert.match(env, /OPENAI_MODEL_PREP=/);
   assert.match(env, /OPENAI_MODEL_ASSIST=/);
   assert.match(env, /OPENAI_MODEL_REVIEW=/);
+  assert.match(env, /OPENAI_MAX_OUTPUT_TOKENS=1200/);
   assert.match(env, /AI_API_MODE=chat/);
   assert.match(env, /AI_TIMEOUT_MS=30000/);
   assert.match(env, /AI_HTTP_CLIENT=fetch/);
@@ -287,6 +293,7 @@ test("login protection is documented and exposed in settings", () => {
   assert.match(deployDoc, /Authorization: Bearer <token>/);
   assert.match(githubDeployDoc, /AUTH_PASSWORD/);
   assert.match(githubDeployDoc, /HttpOnly/);
+  assert.match(githubDeployDoc, /OPENAI_MAX_OUTPUT_TOKENS/);
 });
 
 test("frontend exposes async remote AI fallback path", () => {
@@ -336,6 +343,9 @@ test("AI simulators return the fields expected by the renderer", () => {
   assert.equal(typeof prep.serviceStrategy, "string");
   assert.equal(typeof prep.opening, "string");
   assert.ok(Array.isArray(prep.topics));
+  assert.ok(prep.opening.split("\n").length >= 2);
+  assert.ok(prep.topics.length >= 4);
+  assert.ok(prep.avoid.length >= 4);
   assert.ok(Array.isArray(prep.avoid));
 
   const assist = context.generateAssist({
@@ -347,6 +357,9 @@ test("AI simulators return the fields expected by the renderer", () => {
   assert.equal(typeof assist.judgment, "string");
   assert.equal(typeof assist.currentStrategy, "string");
   assert.equal(typeof assist.reply, "string");
+  assert.ok(assist.reply.length > 40);
+  assert.ok(assist.currentStrategy.split("\n").length >= 3);
+  assert.ok(assist.avoid.length >= 4);
   assert.ok(Array.isArray(assist.avoid));
 
   const review = context.generateReview({
@@ -365,7 +378,39 @@ test("AI simulators return the fields expected by the renderer", () => {
   assert.equal(typeof review.profileUpdate.preferred_style, "string");
   assert.equal(typeof review.nextOpening, "string");
   assert.equal(typeof review.nextContact, "string");
+  assert.ok(review.summary.split("\n").length >= 3);
+  assert.ok(review.nextContact.split("\n").length >= 2);
   assert.match(review.repurchase, /高|中|低/);
+});
+
+test("AI quality guidance avoids thin generic output", () => {
+  const app = read(appPath);
+  const server = read(serverPath);
+  const contract = read(aiContractPath);
+  const deployDoc = read(deployDocPath);
+
+  for (const pattern of [/lines\(\[/, /具体判断条件/, /多条可复制话术/, /少用“首先、其次/, /OPENAI_MAX_OUTPUT_TOKENS=1200/]) {
+    assert.match(`${app}\n${server}\n${contract}\n${deployDoc}`, pattern);
+  }
+
+  const context = loadAppContext();
+  const bossId = context.state.bosses[0].id;
+  const prep = context.generatePrep({ boss_id: bossId, game: "瓦罗兰特", goal: "轻松上分", style: "温柔陪伴型" });
+  const assist = context.generateAssist({ boss_id: bossId, situation: "老板输了两把，现在不怎么说话。", emotion: "输游戏后烦躁" });
+  const review = context.generateReview({
+    boss_id: bossId,
+    game: "瓦罗兰特",
+    result: "前期输了两把，后面赢了两把",
+    boss_emotion: "开心",
+    had_silence: "否",
+    renewed: "否",
+    complaint: "否",
+  });
+
+  assert.doesNotMatch(`${prep.serviceStrategy}\n${assist.currentStrategy}\n${review.summary}`, /首先|其次|综上|情绪价值|建立连接|破冰/);
+  assert.ok(prep.serviceStrategy.length > 120);
+  assert.ok(assist.currentStrategy.length > 100);
+  assert.ok(review.performance.length > 80);
 });
 
 test("AI adapter normalizes outputs for all supported scenarios", () => {

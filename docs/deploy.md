@@ -129,6 +129,7 @@ OPENAI_MODEL=中转站支持的模型名
 OPENAI_MODEL_PREP=
 OPENAI_MODEL_ASSIST=
 OPENAI_MODEL_REVIEW=
+OPENAI_MAX_OUTPUT_TOKENS=1200
 AI_API_MODE=chat
 AI_TIMEOUT_MS=30000
 AI_HTTP_CLIENT=fetch
@@ -175,6 +176,7 @@ OPENAI_MODEL_REVIEW=
 AI_API_MODE=responses
 OPENAI_REASONING_EFFORT=xhigh
 OPENAI_DISABLE_RESPONSE_STORAGE=true
+OPENAI_MAX_OUTPUT_TOKENS=1200
 AI_TIMEOUT_MS=30000
 AI_HTTP_CLIENT=curl
 OPENAI_RESPONSE_FORMAT=text
@@ -215,6 +217,28 @@ OPENAI_MODEL
 - 开单准备：`deepseek-chat`
 - 实时辅助：`deepseek-chat`
 - 订单复盘：`deepseek-reasoner`
+
+## 调整 AI 输出长度和口吻
+
+默认服务端会给模型设置：
+
+```text
+OPENAI_MAX_OUTPUT_TOKENS=1200
+```
+
+如果生成内容仍然太短，可以提高到：
+
+```text
+OPENAI_MAX_OUTPUT_TOKENS=1800
+```
+
+如果内容太长、响应太慢，可以降低到：
+
+```text
+OPENAI_MAX_OUTPUT_TOKENS=800
+```
+
+当前 prompt 已要求模型少用模板词，输出更像陪玩临场备忘：多给具体判断条件、多条可复制话术，少写“首先、其次、建议你可以、情绪价值、建立连接”这类 AI 腔表达。
 
 ## 数据备份
 

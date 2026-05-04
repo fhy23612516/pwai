@@ -9,6 +9,7 @@ const host = process.env.HOST || "0.0.0.0";
 const port = Number(process.env.PORT || 4173);
 const maxBodyBytes = Number(process.env.MAX_BODY_BYTES || 65536);
 const aiTimeoutMs = Number(process.env.AI_TIMEOUT_MS || 30000);
+const aiMaxOutputTokens = Number(process.env.OPENAI_MAX_OUTPUT_TOKENS || 1200);
 const defaultBaseUrl = "https://api.openai.com/v1";
 const authPassword = process.env.AUTH_PASSWORD || "";
 const authCookieName = sanitizeCookieName(process.env.AUTH_COOKIE_NAME || "pwai_session");
@@ -519,6 +520,7 @@ async function callChatCompletionsApi(kind, requestPayload) {
   const body = {
     model: selectModel(kind),
     temperature: Number(process.env.OPENAI_TEMPERATURE || 0.7),
+    max_tokens: getMaxOutputTokens(),
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: buildSystemPrompt(kind) },
@@ -536,6 +538,7 @@ async function callResponsesApi(kind, requestPayload) {
   const baseUrl = normalizeBaseUrl(process.env.OPENAI_BASE_URL || defaultBaseUrl);
   const body = {
     model: selectModel(kind),
+    max_output_tokens: getMaxOutputTokens(),
     input: [
       { role: "system", content: buildSystemPrompt(kind) },
       { role: "user", content: JSON.stringify(requestPayload) },
@@ -660,14 +663,48 @@ function sanitizeCookieName(value) {
   return clean || "pwai_session";
 }
 
+function getMaxOutputTokens() {
+  return Number.isFinite(aiMaxOutputTokens) && aiMaxOutputTokens > 0 ? aiMaxOutputTokens : 1200;
+}
+
 function buildSystemPrompt(kind) {
+  const sceneGuidance = {
+    prep: [
+      "serviceStrategy 写 3-5 行：开局观察点、聊天密度、游戏节奏、如果老板沉默怎么调。",
+      "opening 写 2-3 条可直接发的开场话术，用换行分隔，分别适配自然开场、低压开场、老客户开场。",
+      "topics 给 4-6 个具体话题，不要只写大类，要能直接拿来聊。",
+      "warning 写具体雷点和观察信号，说明什么时候少说、什么时候接话。",
+      "avoid 给 4-6 条不建议说的话，每条后面用括号写原因。",
+    ],
+    assist: [
+      "judgment 写 2-4 句，判断老板当前更可能是沉默、烦躁、尴尬、想整活还是专注上分。",
+      "currentStrategy 写 3-5 行可执行动作：现在先说什么、下一局怎么报信息、老板继续沉默怎么处理。",
+      "reply 写 2-3 条可直接发的话术，用换行分隔，第一条最稳。",
+      "gentle、lively、technical 分别给不同风格的可复制话术，不要只改语气词。",
+      "avoid 给 4-6 条此刻不能说的话，每条后面用括号写原因。",
+    ],
+    review: [
+      "summary 写 3-5 句：本单节奏、老板情绪变化、有效做法、下次要记住的点。",
+      "profileUpdate 四个字段都尽量写具体，可直接合并进老板档案。",
+      "nextOpening 写 2-3 条下次可直接发的开场话术，用换行分隔。",
+      "nextContact 写联系时间、第一句话、没回复时怎么处理，不要催单。",
+      "performance 写做得好的地方和下次改进点，避免空泛鼓励。",
+    ],
+  };
+
   return [
     "你是陪玩副驾 AI 的服务端生成器。",
+    "输出对象是给陪玩本人看的备忘和话术，不是让 AI 直接冒充陪玩和老板聊天。",
     "只输出 JSON，不要输出 Markdown、解释、代码块或多余文本。",
     "输出必须符合当前场景字段，字段名使用英文。",
-    "话术自然、克制、短句优先，便于复制。",
+    "内容要比短模板更具体，但仍然方便复制；字符串字段可以用换行组织成几条短句。",
+    "必须结合输入里的老板档案、当前局势、陪玩人设和本次目标，不要泛泛而谈。",
+    "话术要像真人陪玩临场能说出口：轻一点、自然一点、有边界，不要客服腔。",
+    "减少 AI 味：不要使用“首先、其次、综上、赋能、情绪价值、建立连接、破冰、建议你可以、高质量陪伴”等套话。",
+    "不要每句都用“可以”开头；少讲道理，多给具体可发的句子和判断条件。",
     "禁止诱导消费、PUA、情绪操控、隐私套话、过度暧昧、冒充真人或欺骗老板。",
     `当前场景：${kind}`,
+    `场景细化要求：${(sceneGuidance[kind] || []).join(" ")}`,
     `必须包含字段：${Object.keys(outputSchemas[kind] || {}).join(", ")}`,
   ].join("\n");
 }

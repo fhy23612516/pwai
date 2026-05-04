@@ -1421,69 +1421,144 @@ function filterOrders(filter) {
   return sorted;
 }
 
+function lines(items) {
+  return items.filter(Boolean).join("\n");
+}
+
+function bossLabel(boss) {
+  return boss.nickname || "老板";
+}
+
+function firstValue(value, fallback = "今天的游戏") {
+  return splitList(value)[0] || value || fallback;
+}
+
 function generatePrep(payload) {
   const boss = getBoss(payload.boss_id) || {};
+  const name = bossLabel(boss);
+  const game = payload.game || boss.games || "今天的游戏";
   const style = payload.style || state.persona.style;
   const opening = makeOpening(boss, payload.game, style);
+  const typeText = splitList(boss.customer_type).join("、") || "未记录类型";
+  const favoriteTopic = firstValue(boss.favorite_topics, "上次比较顺的那一把");
   return {
-    serviceStrategy: `${boss.nickname || "老板"}偏${splitList(boss.customer_type).join("、") || "未记录"}，本单以“${payload.goal || "轻松体验"}”为主。先给空间，再用游戏节奏自然带起互动。`,
+    serviceStrategy: lines([
+      `${name}偏${typeText}，本单目标是“${payload.goal || "轻松体验"}”，不要一上来把聊天拉满，先把游戏状态稳住。`,
+      `开局前 5 分钟先观察两件事：他接话快不快、输一波后还愿不愿意说话。接话慢就多报信息，接话快再顺着${favoriteTopic}聊。`,
+      `聊天密度控制在“有回应再多接一句”，不要连续问问题；如果他沉默，先用游戏信息填空，不要追问原因。`,
+      `如果局势顺，夸具体行为，比如“这波位置选得挺舒服”；如果逆风，少复盘失误，先给下一波能做的小目标。`,
+    ]),
     opening,
     topics: [
-      "上次订单里的名场面或手感变化",
-      `${payload.game || boss.games || "本次游戏"}里最近常玩的英雄 / 角色`,
-      payload.goal?.includes("上分") ? "今天想稳一点还是主动找节奏" : "今天想轻松玩还是快乐整活",
+      `先问${game}今天想稳一点还是轻松一点，不要直接问“要不要上分”`,
+      `接上次的${favoriteTopic}，用一句短吐槽开场`,
+      `问最近常玩的英雄、位置或枪法手感，只问一个点，不连环追问`,
+      payload.goal?.includes("上分") ? "聊今天先保分还是试着主动找节奏" : "聊今天想认真打两把还是先热手快乐局",
+      boss.emotion_pattern ? `留意情绪模式：${boss.emotion_pattern}` : "留意第一把输了之后老板还接不接话",
+      state.persona.can_joke?.includes("可以") ? "如果气氛顺，可以轻轻接梗，但别把话题抢走" : "保持安静陪伴，把重点放在游戏信息",
     ],
-    warning: boss.notes || boss.disliked_style || "避免一开始太密集聊天，先观察老板状态。",
+    warning: lines([
+      boss.notes ? `档案备注：${boss.notes}` : "",
+      boss.disliked_style ? `雷点：${boss.disliked_style}` : "不要一开始太密集聊天，先观察老板状态。",
+      boss.avoid_topics ? `避开话题：${boss.avoid_topics}` : "",
+      `如果${name}回复变短、只回“嗯/行”、开始频繁叹气，就把闲聊降下来，改成报点、补信息、给下一波小目标。`,
+    ]),
     avoid: [
-      "老板你怎么不说话？",
-      "要不要多点几小时？",
-      "你今天是不是心情不好？",
+      "老板你怎么不说话？（像在逼他解释）",
+      "要不要多点几小时？（还没建立体验就催单）",
+      "你今天是不是心情不好？（容易把气氛问僵）",
+      "刚才那波你不该那样打。（直接评价操作会顶到情绪）",
+      "我给你带飞就完事了。（太满，输了会尴尬）",
     ],
   };
 }
 
 function generateAssist(payload) {
   const boss = getBoss(payload.boss_id) || {};
+  const name = bossLabel(boss);
   const quiet = `${payload.situation} ${payload.emotion}`.includes("沉默") || `${payload.situation} ${payload.emotion}`.includes("不想说话");
   const angry = `${payload.situation} ${payload.emotion}`.includes("烦") || `${payload.situation} ${payload.emotion}`.includes("暴躁") || `${payload.situation} ${payload.emotion}`.includes("输");
   const fun = `${payload.situation} ${payload.emotion}`.includes("整活") || payload.humor === "是";
+  const gameState = payload.game_state || "当前局势有点乱";
 
   const judgment = quiet
-    ? "老板可能有点烦，也可能只是想专注游戏，不适合强行追问。"
+    ? lines([
+        `${name}现在不像是不想理人，更像是输局后在收情绪或想专注打下一把。`,
+        "这个阶段越问“怎么了”越容易让他有压力，先把陪伴感放在游戏信息和稳定节奏上。",
+        boss.emotion_pattern ? `档案里也记录过：${boss.emotion_pattern}` : "",
+      ])
     : fun
-      ? "老板当前偏娱乐需求，可以放松配合，不要用太严肃的指挥压住气氛。"
-      : "老板需要稳定感，先回应当前局势，再给一个可执行的小方向。";
+      ? lines([
+          `${name}现在偏娱乐局，重点不是讲道理，而是接住他的梗和情绪。`,
+          "可以轻松一点，但别一直抢话；笑点过去后要把注意力拉回游戏。",
+        ])
+      : lines([
+          `${name}现在需要稳定感，先承认局势乱，再给一个能马上执行的小方向。`,
+          "不要长篇分析，不要复盘谁的问题；先让下一波有事可做。",
+        ]);
 
   const strategy = angry
-    ? "降低聊天压力，把注意力放回下一局节奏，少评价刚才操作。"
+    ? lines([
+        `先接住“这把确实乱”，不要评价${name}刚才的操作。`,
+        `下一句话给具体安排：${gameState}，先帮他看信息、报点或提醒技能。`,
+        "如果他继续沉默，就 2-3 分钟只报关键游戏信息，等他主动接话再聊。",
+        "赢一波后再轻轻把气氛带回来，不要在输局马上开玩笑。",
+      ])
     : fun
-      ? "接住老板的娱乐需求，配合轻松表达，输赢压力往后放。"
-      : "先短句回应，再根据老板反应决定是否继续聊天。";
+      ? lines([
+          "先接梗，不急着纠正打法。",
+          "把输赢压力往后放，但关键团前还是提醒一句重点信息。",
+          "如果他笑了或继续抛梗，可以多接一句；如果没回应，就收回来认真打。",
+        ])
+      : lines([
+          "先短句回应当前局势。",
+          "第二句给下一波行动，不超过 15 秒。",
+          "观察他是否接话：接话就轻聊，不接就专注报信息。",
+        ]);
 
   const reply = payload.shorter
-    ? "没事，这两把节奏乱，下一把我帮你多看信息，咱们慢慢打回来。"
+    ? "没事，这两把节奏确实乱。下一把我帮你多看信息，咱们先把开局稳住。"
     : fun
-      ? "懂了，今天主打快乐局。咱们赢了血赚，输了也得整出点节目效果。"
-      : "这两把节奏确实有点乱，老板你先不用急，我帮你多看点信息，下一把咱们慢慢打回来。";
+      ? lines([
+          "懂了，今天主打快乐局。赢了血赚，输了也得整出点节目效果。",
+          "不过下一波我还是帮你盯一下关键信息，节目效果归节目效果，能赢咱也不放过。",
+        ])
+      : lines([
+          "这两把节奏确实有点乱，先别急着怪自己。我下一把多帮你看信息，咱们把开局稳住。",
+          "刚才那波先过去，下一局我们先打简单一点：少冒险，先拿信息，再找机会。",
+          "你要是不想说话也没事，我先多报点，等手感回来咱再慢慢聊。",
+        ]);
 
   return {
     judgment,
     currentStrategy: strategy,
     reply,
-    gentle: "没事啦，刚才确实不好打。你先放松点，我陪你慢慢找手感。",
-    lively: "这两把节奏多少有点乱，下一把咱们把场子找回来。",
-    technical: "下一把我帮你多报位置和技能信息，咱们先稳住开局节奏。",
+    gentle: lines([
+      "没事，刚才确实不好打。你先缓一下，我陪你慢慢找手感。",
+      "这把先别想太多，我在旁边帮你看着点，咱们一波一波来。",
+    ]),
+    lively: lines([
+      "这两把节奏有点抽象，下一把咱们把场子找回来。",
+      "先稳住，等会儿赢一波我再帮你把气氛拉回来。",
+    ]),
+    technical: lines([
+      "下一把我多报位置和技能信息，开局先别急着接第一波硬架。",
+      "我们先拿信息，能打再打，不能打就退一步等队友节奏。",
+    ]),
     avoid: [
-      "你怎么不说话？",
-      "别生气了。",
-      "其实你刚才也有点问题。",
+      "你怎么不说话？（会把沉默变成压力）",
+      "别生气了。（像在否定他的情绪）",
+      "其实你刚才也有点问题。（输局后容易顶起来）",
+      "这队友真没救。（短期爽，后面更容易上头）",
+      "要不别打了吧。（会显得你先泄气）",
     ],
-    note: boss.disliked_style ? `结合老板雷点：${boss.disliked_style}` : "",
+    note: boss.disliked_style ? `结合老板雷点：${boss.disliked_style}。这轮先避开这些表达，等他主动开口再延展话题。` : "",
   };
 }
 
 function generateReview(payload) {
   const boss = getBoss(payload.boss_id) || {};
+  const name = bossLabel(boss);
   const hadSilence = payload.had_silence === "是";
   const renewed = payload.renewed === "是";
   const complaint = payload.complaint === "是";
@@ -1503,24 +1578,58 @@ function generateReview(payload) {
       };
 
   return {
-    summary: `${boss.nickname || "老板"}本单${payload.result || "整体完成"}，整体情绪为${payload.boss_emotion || "未记录"}。${hadSilence ? "中途出现冷场，需要保留低压力回应策略。" : "互动较顺，不需要刻意加大聊天强度。"}`,
+    summary: lines([
+      `${name}本单${payload.result || "整体完成"}，整体情绪是${payload.boss_emotion || "未记录"}，整体体验先按“${repurchase}复购”判断。`,
+      hadSilence ? "中途出现冷场，说明逆风或疲惫时不适合强行热场；低压力报信息比连续聊天更稳。" : "本单互动较顺，说明自然接话有效，不需要刻意把聊天强度拉太高。",
+      renewed ? "本次已经续单，下次维护重点是延续体验，不要立刻重复催下一单。" : "本次未续单，后续联系要从上次体验切入，不要直接问要不要再点。",
+      payload.important_notes ? `需要记住的信息：${payload.important_notes}` : "",
+    ]),
     profileUpdate,
     nextOpening: makeOpening(boss, payload.game, state.persona.style),
-    nextContact: renewed ? "可以在 1-2 天后自然问一句是否继续，不需要强调续单。" : "建议 2-3 天后晚上 8 点左右自然联系，从上次游戏体验切入。",
+    nextContact: renewed
+      ? lines([
+          "可以在 1-2 天后自然联系，时间选他常在线的时段。",
+          "第一句别提“续单”，先接上次体验：老板上次后面那几把手感还挺顺，今晚还打不打？",
+          "如果没回复就停住，不要连续追问；隔一天再从游戏状态切一次就够了。",
+        ])
+      : lines([
+          "建议 2-3 天后晚上 8 点左右自然联系，从上次游戏体验切入。",
+          "可发：老板这两天还打不打？上次后面节奏其实找回来了，今晚想轻松玩的话我在。",
+          "如果对方只简单回复，就别马上推时长，先问今天想认真打还是轻松热手。",
+        ]),
     repurchase,
-    performance: `${payload.good_points || "本次服务节奏稳定"}。下次注意：${payload.improvements || "继续记录老板偏好和雷点"}。`,
+    performance: lines([
+      `做得好的地方：${payload.good_points || "本次服务节奏稳定，没有过度打扰老板。"}`,
+      `下次改进：${payload.improvements || "继续记录老板偏好、雷点和逆风时的反应。"}`,
+      `维护重点：下次联系先接上次体验和${payload.game || boss.games || "常玩游戏"}状态，不要一开口就问下不下单。`,
+      hadSilence ? "下次一旦出现沉默，先减少问题，改成报点和短句陪伴，等他主动接话再轻聊。" : "下次可以保留这次的自然节奏，重点复用老板愿意接的话题。",
+    ]),
   };
 }
 
 function makeOpening(boss, game, style) {
   const targetGame = game || boss.games || "今天的游戏";
+  const name = bossLabel(boss);
+  const topic = firstValue(boss.favorite_topics, "上次后面那几把");
   if (String(style).includes("技术")) {
-    return `老板今天打${targetGame}的话，我先帮你看节奏，前两把咱们稳一点找手感。`;
+    return lines([
+      `${name}，今天还打${targetGame}吗？前两把我先帮你看节奏，咱们稳一点找手感。`,
+      `如果想上分，开局我多报信息，咱们先别急着硬接第一波。`,
+      `上次${topic}还挺顺的，今天可以先按那个节奏来。`,
+    ]);
   }
   if (String(style).includes("整活") || String(style).includes("搞笑")) {
-    return `老板今天还打${targetGame}吗？咱们轻松点来，赢了血赚，输了也有素材。`;
+    return lines([
+      `${name}，今天还打${targetGame}吗？咱们轻松点来，赢了血赚，输了也有素材。`,
+      `先热手两把，状态好咱们认真冲，状态一般就主打快乐局。`,
+      `上次${topic}挺有节目效果的，今天看看还能不能复刻一下。`,
+    ]);
   }
-  return `老板今天还打${targetGame}吗？上次后面状态挺好的，今天咱们继续慢慢找手感。`;
+  return lines([
+    `${name}，今天还打${targetGame}吗？上次后面状态挺好的，今天咱们继续慢慢找手感。`,
+    `你要是刚上线还没热开，我先陪你轻松打两把，不急着上压力。`,
+    `如果今天想安静点也没事，我多帮你看信息，咱们按舒服的节奏来。`,
+  ]);
 }
 
 function generateContactMessage(boss) {
