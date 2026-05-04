@@ -49,6 +49,7 @@ curl http://127.0.0.1:4173/healthz
 - 支持中转站 `chat/completions` 与 `responses` 两种协议
 - 支持 `AI_HTTP_CLIENT=curl` 兼容部分中转站网络问题
 - 支持 `OPENAI_RESPONSE_FORMAT=text` 兼容不支持结构化格式的中转站
+- 支持按场景选择模型：开单、实时辅助、订单复盘
 - 内置 Node 静态服务器和 `/healthz` 健康检查
 
 AI 接口契约见 [docs/ai-contract.md](./docs/ai-contract.md)。

@@ -189,7 +189,7 @@ async function callAiProvider(kind, requestPayload) {
 async function callChatCompletionsApi(kind, requestPayload) {
   const baseUrl = normalizeBaseUrl(process.env.OPENAI_BASE_URL || defaultBaseUrl);
   const body = {
-    model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+    model: selectModel(kind),
     temperature: Number(process.env.OPENAI_TEMPERATURE || 0.7),
     response_format: { type: "json_object" },
     messages: [
@@ -207,7 +207,7 @@ async function callChatCompletionsApi(kind, requestPayload) {
 async function callResponsesApi(kind, requestPayload) {
   const baseUrl = normalizeBaseUrl(process.env.OPENAI_BASE_URL || defaultBaseUrl);
   const body = {
-    model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+    model: selectModel(kind),
     input: [
       { role: "system", content: buildSystemPrompt(kind) },
       { role: "user", content: JSON.stringify(requestPayload) },
@@ -316,6 +316,11 @@ function postProviderJsonWithCurl(url, body) {
 function normalizeBaseUrl(baseUrl) {
   const clean = String(baseUrl || defaultBaseUrl).replace(/\/+$/, "");
   return clean.endsWith("/v1") ? clean : `${clean}/v1`;
+}
+
+function selectModel(kind) {
+  const key = `OPENAI_MODEL_${String(kind || "").toUpperCase()}`;
+  return process.env[key] || process.env.OPENAI_MODEL || "gpt-4o-mini";
 }
 
 function parseBoolean(value) {

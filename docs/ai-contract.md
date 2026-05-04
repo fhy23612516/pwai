@@ -26,6 +26,9 @@ POST /api/ai
 OPENAI_API_KEY=你的中转站 Key
 OPENAI_BASE_URL=https://你的中转站域名/v1
 OPENAI_MODEL=中转站支持的模型名
+OPENAI_MODEL_PREP=
+OPENAI_MODEL_ASSIST=
+OPENAI_MODEL_REVIEW=
 AI_API_MODE=chat
 AI_TIMEOUT_MS=30000
 AI_HTTP_CLIENT=fetch
@@ -38,6 +41,9 @@ OPENAI_RESPONSE_FORMAT=json_object
 OPENAI_API_KEY=你的中转站 Key
 OPENAI_BASE_URL=https://sub.zlove.tech
 OPENAI_MODEL=gpt-5.4
+OPENAI_MODEL_PREP=
+OPENAI_MODEL_ASSIST=
+OPENAI_MODEL_REVIEW=
 AI_API_MODE=responses
 OPENAI_REASONING_EFFORT=xhigh
 OPENAI_DISABLE_RESPONSE_STORAGE=true
@@ -61,6 +67,16 @@ OPENAI_RESPONSE_FORMAT=text
 ```
 
 此时服务端会通过 prompt 要求模型输出 JSON，并继续解析模型返回的 JSON 文本。
+
+按场景模型覆盖：
+
+```text
+OPENAI_MODEL_PREP=deepseek-chat
+OPENAI_MODEL_ASSIST=deepseek-chat
+OPENAI_MODEL_REVIEW=deepseek-reasoner
+```
+
+这些变量为空时，统一使用 `OPENAI_MODEL`。
 
 ## 通用安全规则
 

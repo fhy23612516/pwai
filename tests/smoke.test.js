@@ -203,6 +203,8 @@ test("deployment files expose start script and health check", () => {
   assert.match(server, /AI_API_MODE/);
   assert.match(server, /OPENAI_BASE_URL/);
   assert.match(server, /OPENAI_MODEL/);
+  assert.match(server, /selectModel/);
+  assert.match(server, /OPENAI_MODEL_\$\{String\(kind/);
   assert.match(server, /AI_TIMEOUT_MS/);
   assert.match(server, /OPENAI_REASONING_EFFORT/);
   assert.match(server, /OPENAI_DISABLE_RESPONSE_STORAGE/);
@@ -233,6 +235,9 @@ test("versioned server config templates target the deployed service", () => {
   assert.match(env, /OPENAI_API_KEY=/);
   assert.match(env, /OPENAI_BASE_URL=https:\/\/api\.openai\.com\/v1/);
   assert.match(env, /OPENAI_MODEL=gpt-4o-mini/);
+  assert.match(env, /OPENAI_MODEL_PREP=/);
+  assert.match(env, /OPENAI_MODEL_ASSIST=/);
+  assert.match(env, /OPENAI_MODEL_REVIEW=/);
   assert.match(env, /AI_API_MODE=chat/);
   assert.match(env, /AI_TIMEOUT_MS=30000/);
   assert.match(env, /AI_HTTP_CLIENT=fetch/);

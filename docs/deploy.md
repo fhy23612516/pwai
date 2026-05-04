@@ -87,6 +87,9 @@ Nginx 安装脚本默认使用：
 OPENAI_API_KEY=你的服务端模型密钥
 OPENAI_BASE_URL=https://你的中转站域名/v1
 OPENAI_MODEL=中转站支持的模型名
+OPENAI_MODEL_PREP=
+OPENAI_MODEL_ASSIST=
+OPENAI_MODEL_REVIEW=
 AI_API_MODE=chat
 AI_TIMEOUT_MS=30000
 AI_HTTP_CLIENT=fetch
@@ -127,6 +130,9 @@ disable_response_storage = true
 OPENAI_API_KEY=你的中转站 Key
 OPENAI_BASE_URL=https://sub.zlove.tech
 OPENAI_MODEL=gpt-5.4
+OPENAI_MODEL_PREP=
+OPENAI_MODEL_ASSIST=
+OPENAI_MODEL_REVIEW=
 AI_API_MODE=responses
 OPENAI_REASONING_EFFORT=xhigh
 OPENAI_DISABLE_RESPONSE_STORAGE=true
@@ -148,6 +154,28 @@ AI_HTTP_CLIENT=curl
 ```text
 OPENAI_RESPONSE_FORMAT=text
 ```
+
+## 按场景选择模型
+
+可以为不同场景配置不同模型：
+
+```text
+OPENAI_MODEL_PREP=deepseek-chat
+OPENAI_MODEL_ASSIST=deepseek-chat
+OPENAI_MODEL_REVIEW=deepseek-reasoner
+```
+
+未配置时会回退到：
+
+```text
+OPENAI_MODEL
+```
+
+对 DeepSeek 来说，建议：
+
+- 开单准备：`deepseek-chat`
+- 实时辅助：`deepseek-chat`
+- 订单复盘：`deepseek-reasoner`
 
 ## 数据备份
 
