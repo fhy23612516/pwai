@@ -144,6 +144,32 @@ curl http://127.0.0.1:4188/healthz
 
 二选一：PM2 或 systemd。
 
+如果采用 systemd，推荐使用仓库里的版本化模板：
+
+```bash
+cd /opt/pwai
+bash deploy/install-systemd.sh
+```
+
+脚本会：
+
+- 创建 `/etc/pwai/pwai.env`
+- 从 `deploy/pwai.service` 生成 `/etc/systemd/system/pwai.service`
+- 使用当前服务器上的 `node` 路径
+- reload 并重启 `pwai`
+
+端口配置在：
+
+```bash
+/etc/pwai/pwai.env
+```
+
+默认：
+
+```text
+PORT=4188
+```
+
 ### 5.1 PM2 方式
 
 安装 PM2：
@@ -227,15 +253,24 @@ journalctl -u pwai -f
 推荐用子域名，例如：
 
 ```text
-pwai.example.com
+pwai.heiheihei.pw
 ```
+
+推荐使用仓库里的版本化模板：
+
+```bash
+cd /opt/pwai
+bash deploy/install-nginx.sh
+```
+
+脚本会把 `deploy/nginx-pwai.conf` 复制到 `/etc/nginx/conf.d/pwai.conf`，执行 `nginx -t` 并 reload。
 
 Nginx 配置示例：
 
 ```nginx
 server {
     listen 80;
-    server_name pwai.example.com;
+    server_name pwai.heiheihei.pw;
 
     location / {
         proxy_pass http://127.0.0.1:4188;
@@ -275,6 +310,16 @@ git pull
 npm test
 ```
 
+如果你采用服务化目录 `/opt/pwai`，使用：
+
+```bash
+cd /opt/pwai
+git pull
+npm test
+sudo systemctl restart pwai
+sudo systemctl status pwai --no-pager -l
+```
+
 PM2：
 
 ```bash
@@ -308,7 +353,7 @@ git push
 ```bash
 git pull
 npm test
-pm2 restart pwai
+sudo systemctl restart pwai
 ```
 
 或：
@@ -320,6 +365,8 @@ sudo systemctl restart pwai
 ## 9. 注意事项
 
 - 不要和服务器现有程序使用同一个端口
+- 本项目服务器配置模板在 `deploy/` 目录下，应该一起纳入 Git
+- 实际 `/etc/pwai/pwai.env` 可以按服务器修改，不需要提交回仓库
 - 不要把 AI API Key 写入前端代码或 GitHub
 - 当前数据存在浏览器 `localStorage`，换浏览器会看不到旧数据
 - 设置页可以导出 / 导入 JSON 数据

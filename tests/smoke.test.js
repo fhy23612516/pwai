@@ -12,6 +12,12 @@ const deployDocPath = path.join(root, "docs", "deploy.md");
 const githubDeployDocPath = path.join(root, "docs", "github-and-deploy.md");
 const packagePath = path.join(root, "package.json");
 const serverPath = path.join(root, "server.js");
+const deployDir = path.join(root, "deploy");
+const deployEnvPath = path.join(deployDir, "pwai.env.example");
+const deployServicePath = path.join(deployDir, "pwai.service");
+const deployNginxPath = path.join(deployDir, "nginx-pwai.conf");
+const installSystemdPath = path.join(deployDir, "install-systemd.sh");
+const installNginxPath = path.join(deployDir, "install-nginx.sh");
 
 function read(filePath) {
   return fs.readFileSync(filePath, "utf8");
@@ -115,7 +121,18 @@ function test(name, fn) {
 }
 
 test("required static files exist and are not empty", () => {
-  for (const filePath of [indexPath, stylesPath, appPath, packagePath, serverPath]) {
+  for (const filePath of [
+    indexPath,
+    stylesPath,
+    appPath,
+    packagePath,
+    serverPath,
+    deployEnvPath,
+    deployServicePath,
+    deployNginxPath,
+    installSystemdPath,
+    installNginxPath,
+  ]) {
     const stats = fs.statSync(filePath);
     assert.ok(stats.size > 0, `${path.basename(filePath)} should not be empty`);
   }
@@ -186,6 +203,22 @@ test("deployment files expose start script and health check", () => {
   for (const pattern of [/git remote add origin/, /git push/, /PM2/, /systemd/, /Nginx/, /4188/, /git revert/]) {
     assert.match(githubDeployDoc, pattern);
   }
+});
+
+test("versioned server config templates target the deployed service", () => {
+  const env = read(deployEnvPath);
+  const service = read(deployServicePath);
+  const nginx = read(deployNginxPath);
+  const installSystemd = read(installSystemdPath);
+  const installNginx = read(installNginxPath);
+
+  assert.match(env, /PORT=4188/);
+  assert.match(service, /WorkingDirectory=\/opt\/pwai/);
+  assert.match(service, /EnvironmentFile=-\/etc\/pwai\/pwai\.env/);
+  assert.match(nginx, /server_name pwai\.heiheihei\.pw/);
+  assert.match(nginx, /proxy_pass http:\/\/127\.0\.0\.1:4188/);
+  assert.match(installSystemd, /systemctl restart pwai/);
+  assert.match(installNginx, /nginx -t/);
 });
 
 test("AI provider settings are part of local state", () => {

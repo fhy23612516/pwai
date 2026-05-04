@@ -51,6 +51,8 @@ AI 接口契约见 [docs/ai-contract.md](./docs/ai-contract.md)。
 
 GitHub 推送和服务器部署流程见 [docs/github-and-deploy.md](./docs/github-and-deploy.md)。
 
+服务器配置模板见 [deploy](./deploy)。
+
 ## 测试方式
 
 运行烟测脚本：

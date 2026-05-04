@@ -46,6 +46,32 @@ curl http://127.0.0.1:4173/healthz
 - 真实 AI 请求应由服务器端代理，前端只调用同源接口，例如 `/api/ai`
 - 当前版本的远程 AI provider 只是配置预留，未真正请求远程接口
 
+## 版本化配置模板
+
+仓库里的 `deploy/` 目录包含服务器配置模板：
+
+- `deploy/pwai.env.example`
+- `deploy/pwai.service`
+- `deploy/nginx-pwai.conf`
+- `deploy/install-systemd.sh`
+- `deploy/install-nginx.sh`
+
+服务化部署推荐：
+
+```bash
+cd /opt/pwai
+bash deploy/install-systemd.sh
+bash deploy/install-nginx.sh
+```
+
+实际环境变量文件位于：
+
+```text
+/etc/pwai/pwai.env
+```
+
+这个文件可以按服务器实际端口修改，不需要提交到 Git。
+
 ## 数据备份
 
 设置页可以复制当前浏览器数据为 JSON。换浏览器或换服务器测试时，可在设置页粘贴 JSON 导入。

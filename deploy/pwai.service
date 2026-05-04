@@ -1,0 +1,14 @@
+[Unit]
+Description=PWAI static app
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/pwai
+EnvironmentFile=-/etc/pwai/pwai.env
+ExecStart=/usr/bin/node /opt/pwai/server.js
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
