@@ -4,6 +4,20 @@
 
 真实模型必须返回 JSON，不要返回 Markdown。所有话术都应短句优先，便于复制。
 
+网页和小程序后续共用服务端接口：
+
+```text
+POST /api/ai
+```
+
+浏览器前端不保存模型密钥。服务端从环境变量读取密钥，例如 `OPENAI_API_KEY`。
+
+当前远程接口骨架行为：
+
+- 未设置 `OPENAI_API_KEY`：返回 `503 AI_PROVIDER_NOT_CONFIGURED`
+- 已设置但 provider 未完成接入：返回 `501 AI_PROVIDER_NOT_IMPLEMENTED`
+- 前端收到错误会自动回退到本地模板
+
 ## 通用安全规则
 
 - 不诱导消费

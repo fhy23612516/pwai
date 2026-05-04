@@ -285,14 +285,38 @@ function bossSelect(name = "boss_id", selected = "") {
 }
 
 function generateAiOutput(kind, payload) {
-  if (state.settings?.ai_provider === "remote") {
-    toastMessage("远程 AI 后端暂未接入，已使用本地模板生成");
-  }
   const provider = localAiProvider[kind];
   if (!provider) {
     throw new Error(`未知 AI 场景：${kind}`);
   }
   return normalizeAiOutput(kind, provider(payload));
+}
+
+async function generateAiOutputAsync(kind, payload) {
+  if (state.settings?.ai_provider !== "remote") {
+    return generateAiOutput(kind, payload);
+  }
+
+  try {
+    const response = await fetch(state.settings.remote_endpoint || "/api/ai", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        kind,
+        payload,
+        player_profile: state.persona,
+        boss_profile: payload?.boss_id ? getBoss(payload.boss_id) : null,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok || data.ok === false) {
+      throw new Error(data.message || data.error || "远程 AI 请求失败");
+    }
+    return normalizeAiOutput(kind, data.output || data);
+  } catch (error) {
+    toastMessage(`远程 AI 不可用，已使用本地模板：${error.message}`);
+    return generateAiOutput(kind, payload);
+  }
 }
 
 function normalizeAiOutput(kind, output) {
@@ -799,11 +823,17 @@ function renderPrep(defaultBossId = "") {
     selectedBossId = event.target.value;
     form.game.value = getBoss(selectedBossId)?.games || "";
   });
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const payload = Object.fromEntries(new FormData(form).entries());
-    appView.querySelector("#prep-output").innerHTML = renderOutput(generateAiOutput(aiKinds.prep, payload));
-    bindCopyButtons();
+    const button = event.submitter;
+    setBusy(button, true, "生成中");
+    try {
+      appView.querySelector("#prep-output").innerHTML = renderOutput(await generateAiOutputAsync(aiKinds.prep, payload));
+      bindCopyButtons();
+    } finally {
+      setBusy(button, false);
+    }
   });
   appView.querySelector("[data-fill-prep]").addEventListener("click", () => {
     form.goal.value = "轻松打一会儿，输赢都别太有压力";
@@ -870,27 +900,39 @@ function renderAssist(defaultBossId = "") {
   form.boss_id.addEventListener("change", (event) => {
     selectedBossId = event.target.value;
   });
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const payload = Object.fromEntries(new FormData(form).entries());
-    const output = generateAiOutput(aiKinds.assist, payload);
-    state.assists.unshift({
-      id: id("assist"),
-      boss_id: payload.boss_id,
-      situation: payload.situation,
-      emotion: payload.emotion,
-      suggestion: output.currentStrategy,
-      recommended_reply: output.reply,
-      created_at: today(),
-    });
-    saveState();
-    appView.querySelector("#assist-output").innerHTML = renderOutput(output);
-    bindCopyButtons();
+    const button = event.submitter;
+    setBusy(button, true, "生成中");
+    try {
+      const output = await generateAiOutputAsync(aiKinds.assist, payload);
+      state.assists.unshift({
+        id: id("assist"),
+        boss_id: payload.boss_id,
+        situation: payload.situation,
+        emotion: payload.emotion,
+        suggestion: output.currentStrategy,
+        recommended_reply: output.reply,
+        created_at: today(),
+      });
+      saveState();
+      appView.querySelector("#assist-output").innerHTML = renderOutput(output);
+      bindCopyButtons();
+    } finally {
+      setBusy(button, false);
+    }
   });
-  appView.querySelector("[data-shorter]").addEventListener("click", () => {
+  appView.querySelector("[data-shorter]").addEventListener("click", async (event) => {
     const payload = Object.fromEntries(new FormData(form).entries());
-    appView.querySelector("#assist-output").innerHTML = renderOutput(generateAiOutput(aiKinds.assist, { ...payload, shorter: true }));
-    bindCopyButtons();
+    const button = event.currentTarget;
+    setBusy(button, true, "生成中");
+    try {
+      appView.querySelector("#assist-output").innerHTML = renderOutput(await generateAiOutputAsync(aiKinds.assist, { ...payload, shorter: true }));
+      bindCopyButtons();
+    } finally {
+      setBusy(button, false);
+    }
   });
 }
 
@@ -961,13 +1003,19 @@ function renderReview(defaultBossId = "") {
     selectedBossId = event.target.value;
     form.game.value = getBoss(selectedBossId)?.games || "";
   });
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const payload = Object.fromEntries(new FormData(form).entries());
-    lastOutput = generateAiOutput(aiKinds.review, payload);
-    appView.querySelector("#review-output").innerHTML = renderOutput(lastOutput);
-    appView.querySelector("[data-apply-profile]").disabled = false;
-    bindCopyButtons();
+    const button = event.submitter;
+    setBusy(button, true, "生成中");
+    try {
+      lastOutput = await generateAiOutputAsync(aiKinds.review, payload);
+      appView.querySelector("#review-output").innerHTML = renderOutput(lastOutput);
+      appView.querySelector("[data-apply-profile]").disabled = false;
+      bindCopyButtons();
+    } finally {
+      setBusy(button, false);
+    }
   });
   appView.querySelector("[data-save-review]").addEventListener("click", () => {
     const payload = Object.fromEntries(new FormData(form).entries());
@@ -1568,6 +1616,19 @@ function bindCopyButtons() {
       addFavorite(button.dataset.favoriteTitle, button.dataset.favoriteText);
     });
   });
+}
+
+function setBusy(button, busy, text = "处理中") {
+  if (!button) return;
+  if (busy) {
+    button.dataset.originalText = button.textContent;
+    button.textContent = text;
+    button.disabled = true;
+    return;
+  }
+  button.textContent = button.dataset.originalText || button.textContent;
+  button.disabled = false;
+  delete button.dataset.originalText;
 }
 
 function addFavorite(title, text) {

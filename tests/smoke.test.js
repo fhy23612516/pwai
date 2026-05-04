@@ -107,7 +107,7 @@ function loadAppContext() {
   vm.createContext(context);
   vm.runInContext(
     `${code}
-globalThis.__testApi = { state, aiKinds, aiOutputSchemas, generateAiOutput, normalizeAiOutput, generatePrep, generateAssist, generateReview, renderOutput, normalizeImportedState, mergeBossProfileSuggestion, filterOrders };`,
+globalThis.__testApi = { state, aiKinds, aiOutputSchemas, generateAiOutput, generateAiOutputAsync, normalizeAiOutput, generatePrep, generateAssist, generateReview, renderOutput, normalizeImportedState, mergeBossProfileSuggestion, filterOrders };`,
     context,
     { filename: appPath },
   );
@@ -197,6 +197,9 @@ test("deployment files expose start script and health check", () => {
   assert.equal(packageJson.scripts.start, "node server.js");
   assert.equal(packageJson.scripts.test, "node tests/smoke.test.js");
   assert.match(server, /\/healthz/);
+  assert.match(server, /\/api\/ai/);
+  assert.match(server, /AI_PROVIDER_NOT_CONFIGURED/);
+  assert.match(server, /OPENAI_API_KEY/);
   assert.match(server, /process\.env\.PORT/);
   assert.match(deployDoc, /npm start/);
   assert.match(deployDoc, /\/healthz/);
@@ -213,6 +216,8 @@ test("versioned server config templates target the deployed service", () => {
   const installNginx = read(installNginxPath);
 
   assert.match(env, /PORT=4188/);
+  assert.match(env, /OPENAI_API_KEY=/);
+  assert.match(env, /MAX_BODY_BYTES=65536/);
   assert.match(service, /WorkingDirectory=\/opt\/pwai/);
   assert.match(service, /EnvironmentFile=-\/etc\/pwai\/pwai\.env/);
   assert.match(nginx, /server_name pwai\.heiheihei\.pw/);
@@ -222,6 +227,14 @@ test("versioned server config templates target the deployed service", () => {
   assert.match(installNginx, /sites-enabled\/pwai/);
   assert.doesNotMatch(installNginx, /conf\.d\/pwai\.conf/);
   assert.match(installNginx, /nginx -t/);
+});
+
+test("frontend exposes async remote AI fallback path", () => {
+  const app = read(appPath);
+  assert.match(app, /async function generateAiOutputAsync/);
+  assert.match(app, /fetch\(state\.settings\.remote_endpoint/);
+  assert.match(app, /远程 AI 不可用，已使用本地模板/);
+  assert.match(app, /setBusy/);
 });
 
 test("AI provider settings are part of local state", () => {

@@ -377,6 +377,8 @@ sudo systemctl restart pwai
 - 本项目服务器配置模板在 `deploy/` 目录下，应该一起纳入 Git
 - 实际 `/etc/pwai/pwai.env` 可以按服务器修改，不需要提交回仓库
 - 不要把 AI API Key 写入前端代码或 GitHub
+- 网页和小程序后续共用服务端 `/api/ai`
+- 模型密钥只放服务器环境变量，例如 `/etc/pwai/pwai.env` 里的 `OPENAI_API_KEY`
 - 当前数据存在浏览器 `localStorage`，换浏览器会看不到旧数据
 - 设置页可以导出 / 导入 JSON 数据
 - 真实 AI 接入时建议增加服务端 `/api/ai`，由服务器读取环境变量里的密钥
