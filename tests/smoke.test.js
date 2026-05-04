@@ -237,6 +237,8 @@ test("deployment files expose start script and health check", () => {
   assert.match(server, /场景细化要求/);
   assert.match(server, /memory_direction/);
   assert.match(server, /memory_openers/);
+  assert.match(server, /不能只替换游戏名或老板名/);
+  assert.match(server, /不要只做关键词替换/);
   assert.match(server, /OPENAI_API_KEY/);
   assert.match(server, /process\.env\.PORT/);
   assert.match(deployDoc, /npm start/);
@@ -432,6 +434,89 @@ test("AI quality guidance avoids thin generic output", () => {
   assert.ok(prep.serviceStrategy.length > 120);
   assert.ok(assist.currentStrategy.length > 100);
   assert.ok(review.performance.length > 80);
+});
+
+test("AI simulators respond to form attributes instead of keyword swaps", () => {
+  const context = loadAppContext();
+  const bossId = context.state.bosses[0].id;
+
+  const shortQuietPrep = context.generatePrep({
+    boss_id: bossId,
+    game: "瓦罗兰特",
+    goal: "轻松娱乐",
+    duration: "1 小时",
+    emotion: "沉默",
+    style: "温柔陪伴型",
+    is_old: "否",
+    need_active: "不需要",
+  });
+  const longActivePrep = context.generatePrep({
+    boss_id: bossId,
+    game: "瓦罗兰特",
+    goal: "认真上分",
+    duration: "包晚",
+    emotion: "开心",
+    style: "技术带飞型",
+    is_old: "是",
+    need_active: "需要",
+  });
+  assert.notEqual(shortQuietPrep.serviceStrategy, longActivePrep.serviceStrategy);
+  assert.match(shortQuietPrep.serviceStrategy, /本单时间短|低回应|新客户|不需要主动热场/);
+  assert.match(longActivePrep.serviceStrategy, /包晚单|目标偏上分|老客户|需要更主动/);
+
+  const softAssist = context.generateAssist({
+    boss_id: bossId,
+    situation: "老板输了两把，现在不怎么说话。",
+    emotion: "沉默",
+    game_state: "连输两把，队友节奏比较乱",
+    reply_style: "温柔陪伴型",
+    soft: "是",
+    humor: "否",
+  });
+  const funnyAssist = context.generateAssist({
+    boss_id: bossId,
+    situation: "老板想整活，刚才那把节目效果很足。",
+    emotion: "想整活",
+    game_state: "优势局，准备抱团推进",
+    reply_style: "元气搞笑型",
+    soft: "否",
+    humor: "是",
+  });
+  assert.notEqual(softAssist.reply, funnyAssist.reply);
+  assert.match(`${softAssist.judgment}\n${softAssist.currentStrategy}`, /更委婉|低压|连输两把/);
+  assert.match(`${funnyAssist.judgment}\n${funnyAssist.currentStrategy}\n${funnyAssist.reply}`, /允许幽默|接梗|优势局/);
+
+  const complaintReview = context.generateReview({
+    boss_id: bossId,
+    game: "瓦罗兰特",
+    duration: "1 小时",
+    result: "前期连续输，后面没打回来",
+    boss_emotion: "暴躁",
+    had_silence: "是",
+    renewed: "否",
+    complaint: "是",
+    important_notes: "老板说今天不想被一直问。",
+    good_points: "有及时收住聊天。",
+    improvements: "下次少追问。",
+  });
+  const renewedReview = context.generateReview({
+    boss_id: bossId,
+    game: "瓦罗兰特",
+    duration: "3 小时",
+    result: "前期热手，后面连赢三把",
+    boss_emotion: "开心",
+    had_silence: "否",
+    renewed: "是",
+    complaint: "否",
+    important_notes: "老板喜欢轻松吐槽。",
+    good_points: "顺着名场面自然聊天。",
+    improvements: "多准备英雄话题。",
+  });
+  assert.notEqual(complaintReview.summary, renewedReview.summary);
+  assert.equal(complaintReview.repurchase, "低");
+  assert.equal(renewedReview.repurchase, "高");
+  assert.match(complaintReview.summary, /出现冷场|有不满|情绪偏上头/);
+  assert.match(renewedReview.summary, /没有明显冷场|已续单|情绪正向/);
 });
 
 test("AI adapter normalizes outputs for all supported scenarios", () => {

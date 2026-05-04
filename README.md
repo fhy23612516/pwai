@@ -54,6 +54,7 @@ curl http://127.0.0.1:4173/healthz
 - 支持按场景选择模型：开单、实时辅助、订单复盘
 - 支持 `OPENAI_MAX_OUTPUT_TOKENS` 控制远程 AI 输出长度
 - AI 生成内容强化为多条可复制话术和具体临场判断，减少模板化表达
+- AI 生成会读取本单表单属性，避免只做关键词替换
 - 账号注册 / 登录，支持网页 Cookie 和小程序 Bearer token
 - 内置 Node 静态服务器和 `/healthz` 健康检查
 

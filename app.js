@@ -1535,6 +1535,108 @@ function firstValue(value, fallback = "今天的游戏") {
   return splitList(value)[0] || value || fallback;
 }
 
+function includesAny(value, keywords) {
+  const text = String(value || "");
+  return keywords.some((keyword) => text.includes(keyword));
+}
+
+function prepAttributePlan(payload) {
+  const goal = String(payload.goal || "");
+  const duration = String(payload.duration || "");
+  const emotion = String(payload.emotion || "");
+  const needActive = String(payload.need_active || "");
+  const isOld = String(payload.is_old || "");
+  const style = String(payload.style || "");
+
+  return {
+    durationPlan: duration.includes("1 小时")
+      ? "本单时间短，开场别铺太多话，前 10 分钟直接进入游戏状态，中段再看他接不接话。"
+      : duration.includes("包晚")
+        ? "包晚单要留节奏，不要前半小时把话题聊空；每隔几局换一次聊天密度。"
+        : duration.includes("3 小时")
+          ? "三小时单适合分段：前段热手，中段稳定陪打，后段根据状态决定轻聊或专注上分。"
+          : "两小时单节奏适中，前一把先观察情绪，第二把再决定聊天强度。",
+    emotionPlan: includesAny(emotion, ["沉默", "不想说话", "疲惫"])
+      ? "老板当前偏低回应，先少问问题，多给游戏信息和短句陪伴。"
+      : includesAny(emotion, ["暴躁", "烦", "输"])
+        ? "老板当前容易上头，先稳情绪和下一波目标，不要复盘刚才失误。"
+        : includesAny(emotion, ["开心", "想整活"])
+          ? "老板当前有互动空间，可以轻轻接梗，但关键团前要收回来。"
+          : "老板状态不算明确，先用低风险开场试探接话速度。",
+    activePlan: needActive === "需要"
+      ? "本单需要更主动：你主动给轻话题和游戏信息，但每次只抛一个点。"
+      : needActive === "不需要"
+        ? "本单不需要主动热场：以陪打、报点、短回应为主，避免连续找话题。"
+        : "主动程度适中：有回应就多接一句，没回应就收回游戏信息。",
+    relationPlan: isOld === "是"
+      ? "老客户可以接上次体验，不用重新介绍自己，也别突然变得太客气。"
+      : "新客户先建立安全感，少提历史默契，多用稳定、礼貌、低压的开场。",
+    goalPlan: goal.includes("上分")
+      ? "目标偏上分，话术要服务游戏节奏，少用纯闲聊打断专注。"
+      : includesAny(goal, ["轻松", "快乐", "娱乐"])
+        ? "目标偏轻松体验，输赢压力往后放，多保留情绪缓冲。"
+        : "目标不明确，先问今天想认真打还是轻松热手。",
+    stylePlan: includesAny(style, ["技术", "带飞"])
+      ? "风格偏技术，表达要具体到报点、节奏、阵容和下一波行动。"
+      : includesAny(style, ["搞笑", "整活", "二次元"])
+        ? "风格偏整活，先接气氛，但不要把游戏关键信息丢掉。"
+        : includesAny(style, ["安静", "温柔", "陪伴", "情绪"])
+          ? "风格偏陪伴，少用夸张语气，重点是稳定、自然、让对方没压力。"
+          : "风格保持自然，不要突然切换成和人设不一致的表达。",
+  };
+}
+
+function assistAttributePlan(payload) {
+  const emotion = String(payload.emotion || "");
+  const situation = String(payload.situation || "");
+  const replyStyle = String(payload.reply_style || "");
+  const soft = String(payload.soft || "");
+  const humor = String(payload.humor || "");
+  const gameState = String(payload.game_state || "");
+
+  return {
+    situationPlan: gameState ? `当前局势要被明确回应：${gameState}。话术不能只安慰，要给下一步打法。` : "当前局势不明确，先用一句短回应稳住，再观察老板反应。",
+    emotionPlan: includesAny(`${emotion} ${situation}`, ["沉默", "不想说话"])
+      ? "情绪判断偏沉默，别追问原因，优先给空间和游戏信息。"
+      : includesAny(`${emotion} ${situation}`, ["烦", "暴躁", "输"])
+        ? "情绪判断偏上头，别讲道理，先把注意力转到下一局可控动作。"
+        : includesAny(`${emotion} ${situation}`, ["尴尬"])
+          ? "情绪判断偏尴尬，先轻轻接住，不要放大刚才的冷场。"
+          : includesAny(`${emotion} ${situation}`, ["整活", "开心"])
+            ? "情绪判断偏轻松，可以接梗，但别一直抢话。"
+            : "情绪不明显，先给中性、稳妥、可退可进的回应。",
+    stylePlan: includesAny(replyStyle, ["技术", "带飞"])
+      ? "回复风格偏技术，推荐话术要带具体游戏信息。"
+      : includesAny(replyStyle, ["搞笑", "整活", "二次元"])
+        ? "回复风格偏活泼，推荐话术可以轻松一点，但不要油。"
+        : includesAny(replyStyle, ["温柔", "安静", "陪伴", "情绪"])
+          ? "回复风格偏温柔陪伴，推荐话术要短、软、低压。"
+          : "回复风格保持自然，不要突然变成客服式建议。",
+    softPlan: soft === "是" ? "需要更委婉：避免命令句和评价句，多用“咱们先”“没事”“慢慢来”。" : "不需要过度委婉：可以直接给下一步行动，但仍然不要责备。",
+    humorPlan: humor === "是" ? "允许幽默：最多轻轻接一梗，不能在老板明显烦躁时硬搞笑。" : "不需要幽默：收住玩笑，把稳定感放在前面。",
+  };
+}
+
+function reviewAttributePlan(payload) {
+  const hadSilence = payload.had_silence === "是";
+  const renewed = payload.renewed === "是";
+  const complaint = payload.complaint === "是";
+  const emotion = String(payload.boss_emotion || "");
+
+  return {
+    silencePlan: hadSilence ? "本单出现冷场，下次策略必须降低追问和闲聊密度。" : "本单没有明显冷场，可以保留自然接话节奏。",
+    renewedPlan: renewed ? "本单已续单，维护重点是延续体验，不要马上再次催单。" : "本单未续单，后续联系要更自然，先接体验再试探意愿。",
+    complaintPlan: complaint ? "本单有不满，复盘必须记录问题和避雷，后续先修复体验再谈复购。" : "本单无投诉，可以把有效做法沉淀到记忆卡。",
+    emotionPlan: includesAny(emotion, ["开心", "想整活"])
+      ? "老板情绪正向，下次可以从轻松话题或名场面切入。"
+      : includesAny(emotion, ["沉默", "疲惫", "失落"])
+        ? "老板情绪偏低，下次用低压力开场，不要一上来热场。"
+        : includesAny(emotion, ["暴躁", "烦"])
+          ? "老板情绪偏上头，下次先稳游戏节奏，不要复盘个人失误。"
+          : "老板情绪记录不够明确，下次需要重点观察接话速度和输局反应。",
+  };
+}
+
 function generatePrep(payload) {
   const boss = getBoss(payload.boss_id) || {};
   const name = bossLabel(boss);
@@ -1544,9 +1646,12 @@ function generatePrep(payload) {
   const typeText = splitList(boss.customer_type).join("、") || "未记录类型";
   const favoriteTopic = firstValue(boss.favorite_topics, "上次比较顺的那一把");
   const memoryText = bossMemoryText(boss);
+  const plan = prepAttributePlan(payload);
   return {
     serviceStrategy: lines([
       `${name}偏${typeText}，本单目标是“${payload.goal || "轻松体验"}”，不要一上来把聊天拉满，先把游戏状态稳住。`,
+      `本单属性判断：${plan.relationPlan} ${plan.durationPlan} ${plan.emotionPlan}`,
+      `目标和风格处理：${plan.goalPlan} ${plan.stylePlan} ${plan.activePlan}`,
       memoryText ? `老板记忆：${memoryText}` : "",
       `开局前 5 分钟先观察两件事：他接话快不快、输一波后还愿不愿意说话。接话慢就多报信息，接话快再顺着${favoriteTopic}聊。`,
       `聊天密度控制在“有回应再多接一句”，不要连续问问题；如果他沉默，先用游戏信息填空，不要追问原因。`,
@@ -1555,6 +1660,8 @@ function generatePrep(payload) {
     opening,
     topics: [
       `先问${game}今天想稳一点还是轻松一点，不要直接问“要不要上分”`,
+      payload.duration ? `按${payload.duration}来安排聊天密度，不要所有时长都同一种节奏` : "",
+      payload.emotion ? `根据当前状态“${payload.emotion}”决定先陪打还是先热场` : "",
       `接上次的${favoriteTopic}，用一句短吐槽开场`,
       `问最近常玩的英雄、位置或枪法手感，只问一个点，不连环追问`,
       payload.goal?.includes("上分") ? "聊今天先保分还是试着主动找节奏" : "聊今天想认真打两把还是先热手快乐局",
@@ -1566,6 +1673,7 @@ function generatePrep(payload) {
       boss.notes ? `档案备注：${boss.notes}` : "",
       boss.disliked_style ? `雷点：${boss.disliked_style}` : "不要一开始太密集聊天，先观察老板状态。",
       boss.memory_risks ? `记忆风险：${boss.memory_risks}` : "",
+      `本单属性避雷：${plan.emotionPlan} ${plan.activePlan}`,
       boss.avoid_topics ? `避开话题：${boss.avoid_topics}` : "",
       `如果${name}回复变短、只回“嗯/行”、开始频繁叹气，就把闲聊降下来，改成报点、补信息、给下一波小目标。`,
     ]),
@@ -1587,10 +1695,12 @@ function generateAssist(payload) {
   const fun = `${payload.situation} ${payload.emotion}`.includes("整活") || payload.humor === "是";
   const gameState = payload.game_state || "当前局势有点乱";
   const memoryText = bossMemoryText(boss);
+  const plan = assistAttributePlan(payload);
 
   const judgment = quiet
     ? lines([
         `${name}现在不像是不想理人，更像是输局后在收情绪或想专注打下一把。`,
+        `字段判断：${plan.emotionPlan} ${plan.situationPlan}`,
         "这个阶段越问“怎么了”越容易让他有压力，先把陪伴感放在游戏信息和稳定节奏上。",
         boss.emotion_pattern ? `档案里也记录过：${boss.emotion_pattern}` : "",
         memoryText ? `记忆参考：${memoryText}` : "",
@@ -1598,16 +1708,19 @@ function generateAssist(payload) {
     : fun
       ? lines([
           `${name}现在偏娱乐局，重点不是讲道理，而是接住他的梗和情绪。`,
+          `字段判断：${plan.humorPlan} ${plan.stylePlan}`,
           "可以轻松一点，但别一直抢话；笑点过去后要把注意力拉回游戏。",
         ])
       : lines([
           `${name}现在需要稳定感，先承认局势乱，再给一个能马上执行的小方向。`,
+          `字段判断：${plan.emotionPlan} ${plan.softPlan}`,
           "不要长篇分析，不要复盘谁的问题；先让下一波有事可做。",
         ]);
 
   const strategy = angry
     ? lines([
         boss.memory_direction ? `先按记忆方向走：${boss.memory_direction}` : "",
+        `表单属性处理：${plan.situationPlan} ${plan.softPlan} ${plan.stylePlan}`,
         `先接住“这把确实乱”，不要评价${name}刚才的操作。`,
         `下一句话给具体安排：${gameState}，先帮他看信息、报点或提醒技能。`,
         "如果他继续沉默，就 2-3 分钟只报关键游戏信息，等他主动接话再聊。",
@@ -1616,12 +1729,14 @@ function generateAssist(payload) {
     : fun
       ? lines([
           boss.memory_direction ? `先按记忆方向走：${boss.memory_direction}` : "",
+          `表单属性处理：${plan.humorPlan} ${plan.stylePlan}`,
           "先接梗，不急着纠正打法。",
           "把输赢压力往后放，但关键团前还是提醒一句重点信息。",
           "如果他笑了或继续抛梗，可以多接一句；如果没回应，就收回来认真打。",
         ])
       : lines([
           boss.memory_direction ? `先按记忆方向走：${boss.memory_direction}` : "",
+          `表单属性处理：${plan.situationPlan} ${plan.softPlan} ${plan.humorPlan}`,
           "先短句回应当前局势。",
           "第二句给下一波行动，不超过 15 秒。",
           "观察他是否接话：接话就轻聊，不接就专注报信息。",
@@ -1631,12 +1746,12 @@ function generateAssist(payload) {
     ? (splitList(boss.memory_effective_lines)[0] || "没事，这两把节奏确实乱。下一把我帮你多看信息，咱们先把开局稳住。")
     : fun
       ? lines([
-          "懂了，今天主打快乐局。赢了血赚，输了也得整出点节目效果。",
-          "不过下一波我还是帮你盯一下关键信息，节目效果归节目效果，能赢咱也不放过。",
+          payload.soft === "是" ? "懂了，今天主打快乐局。咱们先轻松点来，压力别放太前面。" : "懂了，今天主打快乐局。赢了血赚，输了也得整出点节目效果。",
+          payload.game_state ? `不过${payload.game_state}，下一波我还是帮你盯一下关键信息。` : "不过下一波我还是帮你盯一下关键信息，节目效果归节目效果，能赢咱也不放过。",
         ])
       : lines([
-          "这两把节奏确实有点乱，先别急着怪自己。我下一把多帮你看信息，咱们把开局稳住。",
-          "刚才那波先过去，下一局我们先打简单一点：少冒险，先拿信息，再找机会。",
+          payload.soft === "是" ? "这两把节奏确实有点乱，先别急着怪自己。我下一把多帮你看信息，咱们慢慢稳回来。" : "这两把节奏确实有点乱。我下一把多帮你看信息，咱们先把开局稳住。",
+          payload.game_state ? `刚才${payload.game_state}，下一局我们先打简单一点：少冒险，先拿信息，再找机会。` : "刚才那波先过去，下一局我们先打简单一点：少冒险，先拿信息，再找机会。",
           "你要是不想说话也没事，我先多报点，等手感回来咱再慢慢聊。",
           boss.memory_effective_lines ? `之前有效的说法：${boss.memory_effective_lines}` : "",
         ]);
@@ -1646,15 +1761,15 @@ function generateAssist(payload) {
     currentStrategy: strategy,
     reply,
     gentle: lines([
-      "没事，刚才确实不好打。你先缓一下，我陪你慢慢找手感。",
+      payload.soft === "是" ? "没事，刚才确实不好打。你先缓一下，我陪你慢慢找手感。" : "刚才确实不好打，我们先把下一波处理简单点。",
       "这把先别想太多，我在旁边帮你看着点，咱们一波一波来。",
     ]),
     lively: lines([
-      "这两把节奏有点抽象，下一把咱们把场子找回来。",
+      payload.humor === "是" ? "这两把节奏有点抽象，下一把咱们把场子找回来。" : "这两把节奏乱了点，下一把我们先稳住。",
       "先稳住，等会儿赢一波我再帮你把气氛拉回来。",
     ]),
     technical: lines([
-      "下一把我多报位置和技能信息，开局先别急着接第一波硬架。",
+      payload.game_state ? `下一把针对${payload.game_state}，我多报位置和技能信息，开局先别急着接第一波硬架。` : "下一把我多报位置和技能信息，开局先别急着接第一波硬架。",
       "我们先拿信息，能打再打，不能打就退一步等队友节奏。",
     ]),
     avoid: [
@@ -1678,6 +1793,7 @@ function generateReview(payload) {
   const renewed = payload.renewed === "是";
   const complaint = payload.complaint === "是";
   const repurchase = complaint ? "低" : renewed ? "高" : hadSilence ? "中" : "中高";
+  const plan = reviewAttributePlan(payload);
   const profileUpdate = hadSilence
     ? {
         preferred_style: "沉默或输局阶段更适合低压力陪伴，先给空间再辅助游戏信息。",
@@ -1705,6 +1821,7 @@ function generateReview(payload) {
   return {
     summary: lines([
       `${name}本单${payload.result || "整体完成"}，整体情绪是${payload.boss_emotion || "未记录"}，整体体验先按“${repurchase}复购”判断。`,
+      `复盘字段判断：${plan.silencePlan} ${plan.renewedPlan} ${plan.complaintPlan} ${plan.emotionPlan}`,
       hadSilence ? "中途出现冷场，说明逆风或疲惫时不适合强行热场；低压力报信息比连续聊天更稳。" : "本单互动较顺，说明自然接话有效，不需要刻意把聊天强度拉太高。",
       renewed ? "本次已经续单，下次维护重点是延续体验，不要立刻重复催下一单。" : "本次未续单，后续联系要从上次体验切入，不要直接问要不要再点。",
       payload.important_notes ? `需要记住的信息：${payload.important_notes}` : "",
@@ -1726,6 +1843,7 @@ function generateReview(payload) {
     performance: lines([
       `做得好的地方：${payload.good_points || "本次服务节奏稳定，没有过度打扰老板。"}`,
       `下次改进：${payload.improvements || "继续记录老板偏好、雷点和逆风时的反应。"}`,
+      `属性复盘：${plan.silencePlan} ${plan.complaintPlan}`,
       `维护重点：下次联系先接上次体验和${payload.game || boss.games || "常玩游戏"}状态，不要一开口就问下不下单。`,
       hadSilence ? "下次一旦出现沉默，先减少问题，改成报点和短句陪伴，等他主动接话再轻聊。" : "下次可以保留这次的自然节奏，重点复用老板愿意接的话题。",
     ]),

@@ -93,6 +93,14 @@ OPENAI_MODEL_REVIEW=deepseek-reasoner
 - 字符串字段可以用换行组织成多条短句，但不要输出 Markdown 列表
 - 开单和复盘要给 2-3 条可直接复制的话术，实时辅助至少给稳妥、温柔、活泼、技术四种表达
 - 如果 `boss_profile` 有老板记忆字段，应优先参考记忆，而不是每次重新泛化判断
+- 必须让表单属性实质影响输出，不能只替换游戏名、老板名或关键词
+
+## 字段影响要求
+
+- 开单准备必须参考 `game`、`goal`、`duration`、`emotion`、`style`、`is_old`、`need_active`
+- 实时辅助必须参考 `situation`、`emotion`、`game_state`、`reply_style`、`soft`、`humor`
+- 订单复盘必须参考 `duration`、`result`、`boss_emotion`、`had_silence`、`renewed`、`complaint`、`important_notes`、`good_points`、`improvements`
+- 如果这些字段变化，输出里的策略、话术、提醒至少要有两处明显变化
 
 ## 开单准备 `prep`
 

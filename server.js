@@ -882,6 +882,8 @@ function getMaxOutputTokens() {
 function buildSystemPrompt(kind) {
   const sceneGuidance = {
     prep: [
+      "必须逐项参考 payload.game、payload.goal、payload.duration、payload.emotion、payload.style、payload.is_old、payload.need_active；不能只替换游戏名或老板名。",
+      "duration 要影响聊天密度和节奏安排；emotion 要影响开场压力；is_old 要影响是否引用历史；need_active 要影响主动程度。",
       "serviceStrategy 写 3-5 行：开局观察点、聊天密度、游戏节奏、如果老板沉默怎么调。",
       "opening 写 2-3 条可直接发的开场话术，用换行分隔，分别适配自然开场、低压开场、老客户开场。",
       "topics 给 4-6 个具体话题，不要只写大类，要能直接拿来聊。",
@@ -889,6 +891,8 @@ function buildSystemPrompt(kind) {
       "avoid 给 4-6 条不建议说的话，每条后面用括号写原因。",
     ],
     assist: [
+      "必须逐项参考 payload.situation、payload.emotion、payload.game_state、payload.reply_style、payload.soft、payload.humor；不同字段变化时 judgment、currentStrategy、reply 至少两项要明显变化。",
+      "game_state 要影响具体打法建议；soft 要影响委婉程度；humor 要影响是否接梗；reply_style 要影响话术风格。",
       "judgment 写 2-4 句，判断老板当前更可能是沉默、烦躁、尴尬、想整活还是专注上分。",
       "currentStrategy 写 3-5 行可执行动作：现在先说什么、下一局怎么报信息、老板继续沉默怎么处理。",
       "reply 写 2-3 条可直接发的话术，用换行分隔，第一条最稳。",
@@ -896,6 +900,8 @@ function buildSystemPrompt(kind) {
       "avoid 给 4-6 条此刻不能说的话，每条后面用括号写原因。",
     ],
     review: [
+      "必须逐项参考 payload.duration、payload.result、payload.boss_emotion、payload.had_silence、payload.renewed、payload.complaint、payload.important_notes、payload.good_points、payload.improvements；不能只写通用复盘。",
+      "had_silence、renewed、complaint 必须影响 summary、nextContact、repurchase、performance。",
       "summary 写 3-5 句：本单节奏、老板情绪变化、有效做法、下次要记住的点。",
       "profileUpdate 字段要写具体，可直接合并进老板档案；除 preferred_style、disliked_style、emotion_pattern、notes 外，还要尽量包含 memory_direction、memory_openers、memory_effective_lines、memory_risks、memory_next_probe。",
       "nextOpening 写 2-3 条下次可直接发的开场话术，用换行分隔。",
@@ -911,6 +917,7 @@ function buildSystemPrompt(kind) {
     "输出必须符合当前场景字段，字段名使用英文。",
     "内容要比短模板更具体，但仍然方便复制；字符串字段可以用换行组织成几条短句。",
     "必须结合输入里的老板档案、当前局势、陪玩人设和本次目标，不要泛泛而谈。",
+    "不要只做关键词替换。每次生成前先隐式判断 payload 里的每个字段对策略的影响，并把影响体现在输出内容里。",
     "如果 boss_profile 里有 memory_direction、memory_openers、memory_effective_lines、memory_risks、memory_next_probe，必须优先参考这些老板记忆。",
     "话术要像真人陪玩临场能说出口：轻一点、自然一点、有边界，不要客服腔。",
     "减少 AI 味：不要使用“首先、其次、综上、赋能、情绪价值、建立连接、破冰、建议你可以、高质量陪伴”等套话。",

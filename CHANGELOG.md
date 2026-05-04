@@ -16,6 +16,17 @@ git checkout v0.12.0
 
 生产环境建议优先用 `git revert <commit>` 回滚问题提交，不建议直接 `git reset --hard`。
 
+## v0.14.0 - 表单属性影响 AI 生成
+
+提交：`v0.14.0` tag 指向的 `fix: make ai use form attributes`
+
+- 修复更改本单属性后，AI 输出像关键词替换的问题
+- 开单准备显式读取 `duration`、`emotion`、`is_old`、`need_active`、`goal`、`style`
+- 实时辅助显式读取 `game_state`、`reply_style`、`soft`、`humor`
+- 订单复盘显式读取 `had_silence`、`renewed`、`complaint`、`boss_emotion` 等字段
+- 服务端 prompt 要求远程 AI 不能只替换老板名、游戏名或关键词
+- 自动测试覆盖不同表单属性会生成明显不同策略
+
 ## v0.13.0 - 版本记录整理
 
 提交：`v0.13.0` tag 指向的 `docs: add version changelog`
