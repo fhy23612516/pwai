@@ -89,6 +89,7 @@ OPENAI_BASE_URL=https://你的中转站域名/v1
 OPENAI_MODEL=中转站支持的模型名
 AI_API_MODE=chat
 AI_TIMEOUT_MS=30000
+AI_HTTP_CLIENT=fetch
 OPENAI_REASONING_EFFORT=
 OPENAI_DISABLE_RESPONSE_STORAGE=true
 ```
@@ -129,7 +130,16 @@ AI_API_MODE=responses
 OPENAI_REASONING_EFFORT=xhigh
 OPENAI_DISABLE_RESPONSE_STORAGE=true
 AI_TIMEOUT_MS=30000
+AI_HTTP_CLIENT=curl
 ```
+
+如果 Node `fetch` 访问中转站超时，但系统 `curl` 可以访问，使用：
+
+```text
+AI_HTTP_CLIENT=curl
+```
+
+这会让服务端用系统 `curl` 请求中转站，绕开 Node/undici 与部分 Cloudflare 中转站的连接兼容问题。
 
 ## 数据备份
 

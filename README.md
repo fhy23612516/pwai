@@ -47,6 +47,7 @@ curl http://127.0.0.1:4173/healthz
 - 本地 AI provider 适配层，预留真实模型接口
 - `/api/ai` 服务端代理，支持 OpenAI 兼容中转站，供网页和小程序后续共用
 - 支持中转站 `chat/completions` 与 `responses` 两种协议
+- 支持 `AI_HTTP_CLIENT=curl` 兼容部分中转站网络问题
 - 内置 Node 静态服务器和 `/healthz` 健康检查
 
 AI 接口契约见 [docs/ai-contract.md](./docs/ai-contract.md)。

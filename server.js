@@ -1,6 +1,7 @@
 const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
+const { execFile } = require("node:child_process");
 
 const root = __dirname;
 const host = process.env.HOST || "0.0.0.0";
@@ -232,6 +233,13 @@ async function callResponsesApi(kind, requestPayload) {
 }
 
 async function postProviderJson(url, body) {
+  if ((process.env.AI_HTTP_CLIENT || "fetch").toLowerCase() === "curl") {
+    return postProviderJsonWithCurl(url, body);
+  }
+  return postProviderJsonWithFetch(url, body);
+}
+
+async function postProviderJsonWithFetch(url, body) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), aiTimeoutMs);
   try {
@@ -264,6 +272,42 @@ async function postProviderJson(url, body) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function postProviderJsonWithCurl(url, body) {
+  const payload = JSON.stringify(body);
+  const args = [
+    "--silent",
+    "--show-error",
+    "--fail-with-body",
+    "--max-time",
+    String(Math.ceil(aiTimeoutMs / 1000)),
+    "--request",
+    "POST",
+    url,
+    "--header",
+    "Content-Type: application/json",
+    "--header",
+    `Authorization: Bearer ${process.env.OPENAI_API_KEY}`,
+    "--data-binary",
+    "@-",
+  ];
+
+  return new Promise((resolve, reject) => {
+    const child = execFile("curl", args, { timeout: aiTimeoutMs + 2000, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
+      if (error) {
+        const detail = stdout || stderr || error.message;
+        reject(new Error(`curl provider request failed: ${String(detail).slice(0, 300)}`));
+        return;
+      }
+      try {
+        resolve(stdout ? JSON.parse(stdout) : {});
+      } catch {
+        reject(new Error(`curl provider returned non-JSON response: ${stdout.slice(0, 120)}`));
+      }
+    });
+    child.stdin.end(payload);
+  });
 }
 
 function normalizeBaseUrl(baseUrl) {
