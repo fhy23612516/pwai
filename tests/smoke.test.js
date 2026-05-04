@@ -96,7 +96,7 @@ function loadAppContext() {
   vm.createContext(context);
   vm.runInContext(
     `${code}
-globalThis.__testApi = { state, generatePrep, generateAssist, generateReview, renderOutput, normalizeImportedState };`,
+globalThis.__testApi = { state, generatePrep, generateAssist, generateReview, renderOutput, normalizeImportedState, mergeBossProfileSuggestion };`,
     context,
     { filename: appPath },
   );
@@ -196,7 +196,8 @@ test("AI simulators return the fields expected by the renderer", () => {
     improvements: "下次多记录英雄偏好",
   });
   assert.equal(typeof review.summary, "string");
-  assert.equal(typeof review.profileUpdate, "string");
+  assert.equal(typeof review.profileUpdate, "object");
+  assert.equal(typeof review.profileUpdate.preferred_style, "string");
   assert.equal(typeof review.nextOpening, "string");
   assert.equal(typeof review.nextContact, "string");
   assert.match(review.repurchase, /高|中|低/);
@@ -231,6 +232,28 @@ test("imported state normalization keeps required collections", () => {
   assert.equal(normalized.persona.nickname, "测试");
   assert.ok(Array.isArray(normalized.favorites));
   assert.throws(() => context.normalizeImportedState({ bosses: {} }), /bosses 格式错误/);
+});
+
+test("profile suggestions merge into structured boss fields without duplicates", () => {
+  const context = loadAppContext();
+  const boss = {
+    preferred_style: "轻松自然",
+    disliked_style: "不要催单",
+    emotion_pattern: "输局后沉默",
+    notes: "老客户",
+  };
+  const merged = context.mergeBossProfileSuggestion(boss, {
+    preferred_style: "轻松自然",
+    disliked_style: "不适合追问沉默原因",
+    emotion_pattern: "赢局后会主动聊天",
+    notes: "下次准备低压力开场",
+  });
+
+  assert.equal(merged.preferred_style, "轻松自然");
+  assert.match(merged.disliked_style, /不要催单/);
+  assert.match(merged.disliked_style, /不适合追问沉默原因/);
+  assert.match(merged.emotion_pattern, /赢局后会主动聊天/);
+  assert.match(merged.notes, /下次准备低压力开场/);
 });
 
 test("styles include mobile-first safeguards", () => {

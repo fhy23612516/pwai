@@ -930,14 +930,37 @@ function saveReview(payload, output) {
 function applyProfileSuggestion(bossId, suggestion) {
   state.bosses = state.bosses.map((boss) =>
     boss.id === bossId
-      ? {
-          ...boss,
-          notes: `${boss.notes || ""}\n${suggestion}`.trim(),
-        }
+      ? mergeBossProfileSuggestion(boss, suggestion)
       : boss,
   );
   saveState();
-  toastMessage("画像建议已写入备注");
+  toastMessage("画像建议已写入档案");
+}
+
+function mergeBossProfileSuggestion(boss, suggestion) {
+  const text = typeof suggestion === "string" ? suggestion : suggestion?.notes;
+  if (!suggestion || typeof suggestion !== "object") {
+    return {
+      ...boss,
+      notes: appendUniqueLine(boss.notes, text || ""),
+    };
+  }
+
+  return {
+    ...boss,
+    preferred_style: appendUniqueLine(boss.preferred_style, suggestion.preferred_style || ""),
+    disliked_style: appendUniqueLine(boss.disliked_style, suggestion.disliked_style || ""),
+    emotion_pattern: appendUniqueLine(boss.emotion_pattern, suggestion.emotion_pattern || ""),
+    notes: appendUniqueLine(boss.notes, suggestion.notes || ""),
+  };
+}
+
+function appendUniqueLine(current, addition) {
+  const clean = String(addition || "").trim();
+  const base = String(current || "").trim();
+  if (!clean) return base;
+  if (base.includes(clean)) return base;
+  return [base, clean].filter(Boolean).join("\n");
 }
 
 function renderReminders() {
@@ -1233,8 +1256,18 @@ function generateReview(payload) {
   const complaint = payload.complaint === "是";
   const repurchase = complaint ? "低" : renewed ? "高" : hadSilence ? "中" : "中高";
   const profileUpdate = hadSilence
-    ? "老板在沉默或输局阶段更适合低压力陪伴，不适合追问原因；下次可以先给空间，再用游戏信息辅助。"
-    : "老板对本次互动接受度较好，下次可以从本次聊到的话题或游戏状态自然开场。";
+    ? {
+        preferred_style: "沉默或输局阶段更适合低压力陪伴，先给空间再辅助游戏信息。",
+        disliked_style: "不适合追问沉默原因，不适合评价刚才操作。",
+        emotion_pattern: "输局或节奏乱时可能沉默，需要短句稳定情绪。",
+        notes: "下次开局前准备低压力开场，避免强行热场。",
+      }
+    : {
+        preferred_style: "对自然轻松的互动接受度较好，可以从上次游戏体验切入。",
+        disliked_style: complaint ? "出现不满时先承认体验问题，不要辩解或催单。" : "",
+        emotion_pattern: `${payload.boss_emotion || "情绪稳定"}时互动较顺，可以适度延续话题。`,
+        notes: payload.important_notes ? `本次重要信息：${payload.important_notes}` : "下次继续记录老板喜欢的英雄、打法和聊天节奏。",
+      };
 
   return {
     summary: `${boss.nickname || "老板"}本单${payload.result || "整体完成"}，整体情绪为${payload.boss_emotion || "未记录"}。${hadSilence ? "中途出现冷场，需要保留低压力回应策略。" : "互动较顺，不需要刻意加大聊天强度。"}`,
@@ -1281,7 +1314,7 @@ function renderOutput(output) {
     ["活泼版本", output.lively],
     ["技术版本", output.technical],
     ["本次订单总结", output.summary],
-    ["老板画像更新建议", output.profileUpdate],
+    ["老板画像更新建议", formatProfileUpdate(output.profileUpdate)],
     ["下次开场话术", output.nextOpening],
     ["下次联系建议", output.nextContact],
     ["复购概率", output.repurchase],
@@ -1291,6 +1324,16 @@ function renderOutput(output) {
   ].filter(([, value]) => value && (!Array.isArray(value) || value.length));
 
   return items.map(([title, value]) => outputCard(title, value)).join("");
+}
+
+function formatProfileUpdate(profileUpdate) {
+  if (!profileUpdate || typeof profileUpdate !== "object") return profileUpdate;
+  return [
+    profileUpdate.preferred_style ? `偏好：${profileUpdate.preferred_style}` : "",
+    profileUpdate.disliked_style ? `雷点：${profileUpdate.disliked_style}` : "",
+    profileUpdate.emotion_pattern ? `情绪模式：${profileUpdate.emotion_pattern}` : "",
+    profileUpdate.notes ? `备注：${profileUpdate.notes}` : "",
+  ].filter(Boolean);
 }
 
 function outputCard(title, value) {
