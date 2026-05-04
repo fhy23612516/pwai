@@ -30,6 +30,20 @@ AI_API_MODE=chat
 AI_TIMEOUT_MS=30000
 ```
 
+你的 `responses` 中转站配置示例：
+
+```text
+OPENAI_API_KEY=你的中转站 Key
+OPENAI_BASE_URL=https://sub.zlove.tech
+OPENAI_MODEL=gpt-5.4
+AI_API_MODE=responses
+OPENAI_REASONING_EFFORT=xhigh
+OPENAI_DISABLE_RESPONSE_STORAGE=true
+AI_TIMEOUT_MS=30000
+```
+
+`OPENAI_BASE_URL` 可以写 `https://sub.zlove.tech` 或 `https://sub.zlove.tech/v1`，服务端会自动补齐 `/v1`。
+
 ## 通用安全规则
 
 - 不诱导消费

@@ -380,6 +380,7 @@ sudo systemctl restart pwai
 - 网页和小程序后续共用服务端 `/api/ai`
 - 模型密钥只放服务器环境变量，例如 `/etc/pwai/pwai.env` 里的 `OPENAI_API_KEY`
 - 中转站 API 在 `/etc/pwai/pwai.env` 配置 `OPENAI_BASE_URL`、`OPENAI_MODEL`、`AI_API_MODE=chat`
+- 如果中转站使用 Responses 协议，可配置 `AI_API_MODE=responses`、`OPENAI_REASONING_EFFORT=xhigh`、`OPENAI_DISABLE_RESPONSE_STORAGE=true`
 - 当前数据存在浏览器 `localStorage`，换浏览器会看不到旧数据
 - 设置页可以导出 / 导入 JSON 数据
 - 真实 AI 接入时建议增加服务端 `/api/ai`，由服务器读取环境变量里的密钥

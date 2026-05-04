@@ -218,6 +218,13 @@ async function callResponsesApi(kind, requestPayload) {
     },
   };
 
+  if (process.env.OPENAI_REASONING_EFFORT) {
+    body.reasoning = { effort: process.env.OPENAI_REASONING_EFFORT };
+  }
+  if (parseBoolean(process.env.OPENAI_DISABLE_RESPONSE_STORAGE)) {
+    body.store = false;
+  }
+
   const data = await postProviderJson(`${baseUrl}/responses`, body);
   const content = data.output_text || data.output?.flatMap((item) => item.content || []).find((item) => item.type === "output_text")?.text;
   if (!content) throw new Error("AI provider returned empty responses content.");
@@ -260,7 +267,12 @@ async function postProviderJson(url, body) {
 }
 
 function normalizeBaseUrl(baseUrl) {
-  return String(baseUrl || defaultBaseUrl).replace(/\/+$/, "");
+  const clean = String(baseUrl || defaultBaseUrl).replace(/\/+$/, "");
+  return clean.endsWith("/v1") ? clean : `${clean}/v1`;
+}
+
+function parseBoolean(value) {
+  return ["1", "true", "yes", "on"].includes(String(value || "").toLowerCase());
 }
 
 function buildSystemPrompt(kind) {

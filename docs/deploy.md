@@ -89,6 +89,8 @@ OPENAI_BASE_URL=https://你的中转站域名/v1
 OPENAI_MODEL=中转站支持的模型名
 AI_API_MODE=chat
 AI_TIMEOUT_MS=30000
+OPENAI_REASONING_EFFORT=
+OPENAI_DISABLE_RESPONSE_STORAGE=true
 ```
 
 不要把真实密钥提交到 GitHub。
@@ -105,6 +107,28 @@ AI_API_MODE=chat
 
 ```text
 AI_API_MODE=responses
+```
+
+你的中转站如果配置是：
+
+```toml
+base_url = "https://sub.zlove.tech"
+wire_api = "responses"
+model = "gpt-5.4"
+model_reasoning_effort = "xhigh"
+disable_response_storage = true
+```
+
+则 `/etc/pwai/pwai.env` 使用：
+
+```text
+OPENAI_API_KEY=你的中转站 Key
+OPENAI_BASE_URL=https://sub.zlove.tech
+OPENAI_MODEL=gpt-5.4
+AI_API_MODE=responses
+OPENAI_REASONING_EFFORT=xhigh
+OPENAI_DISABLE_RESPONSE_STORAGE=true
+AI_TIMEOUT_MS=30000
 ```
 
 ## 数据备份
