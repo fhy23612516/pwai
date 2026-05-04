@@ -7,6 +7,7 @@ const navItems = [
   { id: "prep", label: "开单", icon: "S", title: "开单准备", eyebrow: "订单开始前" },
   { id: "assist", label: "求助", icon: "A", title: "实时辅助", eyebrow: "订单进行中" },
   { id: "review", label: "复盘", icon: "R", title: "订单复盘", eyebrow: "订单结束后" },
+  { id: "orders", label: "订单", icon: "O", title: "历史订单", eyebrow: "服务复盘" },
   { id: "library", label: "话术", icon: "L", title: "话术库", eyebrow: "常用收藏" },
   { id: "settings", label: "设置", icon: "T", title: "设置", eyebrow: "数据管理" },
 ];
@@ -136,6 +137,7 @@ const defaultState = {
 
 let state = loadState();
 let currentBossFilter = "全部老板";
+let currentOrderFilter = "全部订单";
 let selectedBossId = null;
 
 const appView = document.querySelector("#app-view");
@@ -300,7 +302,9 @@ function renderHome() {
             <button class="secondary-button" type="button" data-route="assist">实时求助</button>
             <button class="secondary-button" type="button" data-route="review">写订单复盘</button>
             <button class="ghost-button" type="button" data-route="persona">陪玩人设</button>
+            <button class="ghost-button" type="button" data-route="orders">历史订单</button>
             <button class="ghost-button" type="button" data-route="library">话术库</button>
+            <button class="ghost-button" type="button" data-route="settings">设置</button>
           </div>
         </div>
       </section>
@@ -1188,6 +1192,54 @@ function renderOrderCard(order) {
   `;
 }
 
+function renderOrders() {
+  const filters = ["全部订单", "最近 7 天", "已续单", "出现冷场", "未续单"];
+  const orders = filterOrders(currentOrderFilter);
+  const silenceCount = state.orders.filter((order) => order.had_silence).length;
+  const renewedCount = state.orders.filter((order) => order.renewed).length;
+
+  appView.innerHTML = `
+    <div class="grid" style="gap: 14px;">
+      <section class="card pad">
+        <div class="boss-card-head">
+          <div>
+            <h3 class="card-title">订单记录</h3>
+            <p class="card-subtitle">集中查看复盘结果、冷场记录和续单情况。</p>
+          </div>
+          <button class="primary-button compact" type="button" data-route="review">写订单复盘</button>
+        </div>
+        <div class="grid auto" style="margin-top: 16px;">
+          ${metricMini("总订单", state.orders.length)}
+          ${metricMini("已续单", renewedCount)}
+          ${metricMini("冷场订单", silenceCount)}
+        </div>
+        <div class="filter-row" style="margin-top: 16px;">
+          ${filters.map((filter) => `<button class="filter-button ${filter === currentOrderFilter ? "active" : ""}" type="button" data-order-filter="${filter}">${filter}</button>`).join("")}
+        </div>
+      </section>
+
+      ${orders.length ? `<div class="list">${orders.map(renderOrderCard).join("")}</div>` : emptyState("没有符合条件的订单", "切换筛选条件，或先完成一条订单复盘。")}
+    </div>
+  `;
+
+  bindRouteButtons();
+  appView.querySelectorAll("[data-order-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      currentOrderFilter = button.dataset.orderFilter;
+      renderOrders();
+    });
+  });
+}
+
+function filterOrders(filter) {
+  const sorted = [...state.orders].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  if (filter === "最近 7 天") return sorted.filter((order) => daysSince(order.created_at) <= 7);
+  if (filter === "已续单") return sorted.filter((order) => order.renewed);
+  if (filter === "出现冷场") return sorted.filter((order) => order.had_silence);
+  if (filter === "未续单") return sorted.filter((order) => !order.renewed);
+  return sorted;
+}
+
 function generatePrep(payload) {
   const boss = getBoss(payload.boss_id) || {};
   const style = payload.style || state.persona.style;
@@ -1444,6 +1496,7 @@ function render() {
   else if (base === "prep") renderPrep(action);
   else if (base === "assist") renderAssist(action);
   else if (base === "review") renderReview(action);
+  else if (base === "orders") renderOrders();
   else if (base === "reminders") renderReminders();
   else if (base === "library") renderLibrary();
   else if (base === "settings") renderSettings();

@@ -96,7 +96,7 @@ function loadAppContext() {
   vm.createContext(context);
   vm.runInContext(
     `${code}
-globalThis.__testApi = { state, generatePrep, generateAssist, generateReview, renderOutput, normalizeImportedState, mergeBossProfileSuggestion };`,
+globalThis.__testApi = { state, generatePrep, generateAssist, generateReview, renderOutput, normalizeImportedState, mergeBossProfileSuggestion, filterOrders };`,
     context,
     { filename: appPath },
   );
@@ -127,7 +127,7 @@ test("index.html loads the app assets", () => {
 
 test("navigation covers the MVP workflow", () => {
   const app = read(appPath);
-  for (const route of ["home", "bosses", "persona", "prep", "assist", "review", "library", "settings"]) {
+  for (const route of ["home", "bosses", "persona", "prep", "assist", "review", "orders", "library", "settings"]) {
     assert.match(app, new RegExp(`id: "${route}"`), `${route} route should be configured`);
   }
   for (const handler of [
@@ -139,6 +139,7 @@ test("navigation covers the MVP workflow", () => {
     "renderPrep",
     "renderAssist",
     "renderReview",
+    "renderOrders",
     "renderReminders",
     "renderLibrary",
     "renderSettings",
@@ -254,6 +255,14 @@ test("profile suggestions merge into structured boss fields without duplicates",
   assert.match(merged.disliked_style, /不适合追问沉默原因/);
   assert.match(merged.emotion_pattern, /赢局后会主动聊天/);
   assert.match(merged.notes, /下次准备低压力开场/);
+});
+
+test("order filters return expected subsets", () => {
+  const context = loadAppContext();
+  assert.equal(context.filterOrders("全部订单").length, context.state.orders.length);
+  assert.ok(context.filterOrders("出现冷场").every((order) => order.had_silence));
+  assert.ok(context.filterOrders("已续单").every((order) => order.renewed));
+  assert.ok(context.filterOrders("未续单").every((order) => !order.renewed));
 });
 
 test("styles include mobile-first safeguards", () => {
