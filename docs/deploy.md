@@ -81,6 +81,45 @@ Nginx 安装脚本默认使用：
 
 这个文件可以按服务器实际端口修改，不需要提交到 Git。
 
+## 登录保护
+
+当前登录功能是服务端访问密码保护，不需要数据库。网页登录成功后服务端写入 `HttpOnly` Cookie；小程序后续可以使用 `/api/login` 返回的 `token`，请求接口时放到 `Authorization: Bearer <token>`。
+
+如需开启登录，在 `/etc/pwai/pwai.env` 增加：
+
+```text
+AUTH_PASSWORD=设置一个强密码
+AUTH_SESSION_SECRET=一串随机字符
+AUTH_SESSION_TTL_SECONDS=604800
+AUTH_COOKIE_NAME=pwai_session
+AUTH_COOKIE_SECURE=true
+```
+
+生成随机密钥：
+
+```bash
+openssl rand -hex 32
+```
+
+修改后重启服务：
+
+```bash
+sudo systemctl restart pwai
+```
+
+验证流程：
+
+```bash
+curl -i http://127.0.0.1:4188/
+curl -i -X POST http://127.0.0.1:4188/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"password":"你的访问密码"}'
+```
+
+未登录访问首页应跳转 `/login`，登录成功应返回 `Set-Cookie` 和 JSON。`/healthz` 会保持公开，方便 systemd、Nginx 或监控检查服务状态。
+
+如果 `AUTH_PASSWORD` 留空，登录保护关闭，适合本地开发或临时内网调试。
+
 远程 AI 相关环境变量也放在这里：
 
 ```text

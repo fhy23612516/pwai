@@ -1,6 +1,7 @@
 const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
+const crypto = require("node:crypto");
 const { execFile } = require("node:child_process");
 
 const root = __dirname;
@@ -9,6 +10,11 @@ const port = Number(process.env.PORT || 4173);
 const maxBodyBytes = Number(process.env.MAX_BODY_BYTES || 65536);
 const aiTimeoutMs = Number(process.env.AI_TIMEOUT_MS || 30000);
 const defaultBaseUrl = "https://api.openai.com/v1";
+const authPassword = process.env.AUTH_PASSWORD || "";
+const authCookieName = sanitizeCookieName(process.env.AUTH_COOKIE_NAME || "pwai_session");
+const authSessionSecret = process.env.AUTH_SESSION_SECRET || authPassword;
+const authSessionTtlSeconds = Number(process.env.AUTH_SESSION_TTL_SECONDS || 604800);
+const authCookieSecure = parseBoolean(process.env.AUTH_COOKIE_SECURE);
 
 const outputSchemas = {
   prep: {
@@ -60,10 +66,11 @@ function send(response, status, body, headers = {}) {
   response.end(body);
 }
 
-function sendJson(response, status, data) {
+function sendJson(response, status, data, headers = {}) {
   send(response, status, JSON.stringify(data), {
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
+    ...headers,
   });
 }
 
@@ -102,12 +109,39 @@ function resolveRequestPath(urlPath) {
 }
 
 const server = http.createServer((request, response) => {
-  if (request.url === "/healthz") {
+  const requestPath = getRequestPath(request);
+
+  if (requestPath === "/healthz") {
     sendJson(response, 200, { ok: true, service: "pwai" });
     return;
   }
 
-  if ((request.url || "").split("?")[0] === "/api/ai") {
+  if (requestPath === "/login") {
+    serveLoginPage(request, response);
+    return;
+  }
+
+  if (requestPath === "/api/login") {
+    handleLoginRequest(request, response);
+    return;
+  }
+
+  if (requestPath === "/api/logout") {
+    handleLogoutRequest(request, response);
+    return;
+  }
+
+  if (requestPath === "/api/session") {
+    handleSessionRequest(request, response);
+    return;
+  }
+
+  if (!isAuthenticated(request)) {
+    sendAuthRequired(request, response);
+    return;
+  }
+
+  if (requestPath === "/api/ai") {
     handleAiRequest(request, response);
     return;
   }
@@ -134,6 +168,300 @@ const server = http.createServer((request, response) => {
     fs.createReadStream(filePath).pipe(response);
   });
 });
+
+function getRequestPath(request) {
+  return (request.url || "/").split("?")[0] || "/";
+}
+
+function isAuthEnabled() {
+  return Boolean(authPassword);
+}
+
+function getSessionTtlSeconds() {
+  return Number.isFinite(authSessionTtlSeconds) && authSessionTtlSeconds > 0 ? authSessionTtlSeconds : 604800;
+}
+
+function currentUnixSeconds() {
+  return Math.floor(Date.now() / 1000);
+}
+
+function createSessionToken(issuedAt = currentUnixSeconds()) {
+  const timestamp = String(issuedAt);
+  return `${timestamp}.${signSessionTimestamp(timestamp)}`;
+}
+
+function signSessionTimestamp(timestamp) {
+  return crypto.createHmac("sha256", authSessionSecret || authPassword).update(String(timestamp)).digest("base64url");
+}
+
+function validateSessionToken(token) {
+  if (!isAuthEnabled() || !token) return false;
+  const parts = String(token).split(".");
+  if (parts.length !== 2) return false;
+
+  const issuedAt = Number(parts[0]);
+  if (!Number.isInteger(issuedAt)) return false;
+  const now = currentUnixSeconds();
+  if (issuedAt > now + 60) return false;
+  if (now - issuedAt > getSessionTtlSeconds()) return false;
+
+  return timingSafeEqual(parts[1], signSessionTimestamp(parts[0]));
+}
+
+function timingSafeEqual(left, right) {
+  const leftBuffer = Buffer.from(String(left));
+  const rightBuffer = Buffer.from(String(right));
+  if (leftBuffer.length !== rightBuffer.length) return false;
+  return crypto.timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function getSessionTokenFromRequest(request) {
+  const authorization = String(request.headers.authorization || "");
+  const bearer = authorization.match(/^Bearer\s+(.+)$/i);
+  if (bearer) return bearer[1].trim();
+  return parseCookies(request.headers.cookie || "")[authCookieName];
+}
+
+function isAuthenticated(request) {
+  if (!isAuthEnabled()) return true;
+  return validateSessionToken(getSessionTokenFromRequest(request));
+}
+
+function parseCookies(cookieHeader) {
+  return String(cookieHeader || "")
+    .split(";")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .reduce((cookies, item) => {
+      const separator = item.indexOf("=");
+      if (separator === -1) return cookies;
+      const name = item.slice(0, separator).trim();
+      const value = item.slice(separator + 1).trim();
+      try {
+        cookies[name] = decodeURIComponent(value);
+      } catch {
+        cookies[name] = value;
+      }
+      return cookies;
+    }, {});
+}
+
+function buildSessionCookie(token, request) {
+  const parts = [
+    `${authCookieName}=${encodeURIComponent(token)}`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    `Max-Age=${getSessionTtlSeconds()}`,
+  ];
+  if (shouldUseSecureCookie(request)) parts.push("Secure");
+  return parts.join("; ");
+}
+
+function buildClearSessionCookie(request) {
+  const parts = [`${authCookieName}=`, "Path=/", "HttpOnly", "SameSite=Lax", "Max-Age=0"];
+  if (shouldUseSecureCookie(request)) parts.push("Secure");
+  return parts.join("; ");
+}
+
+function shouldUseSecureCookie(request) {
+  const forwardedProto = String(request.headers["x-forwarded-proto"] || "").split(",")[0].trim();
+  return authCookieSecure || forwardedProto === "https";
+}
+
+function sendAuthRequired(request, response) {
+  if (getRequestPath(request).startsWith("/api/")) {
+    sendJson(response, 401, {
+      ok: false,
+      error: "AUTH_REQUIRED",
+      message: "Login required.",
+    });
+    return;
+  }
+  const next = encodeURIComponent(request.url || "/");
+  send(response, 302, "", {
+    Location: `/login?next=${next}`,
+    "Cache-Control": "no-store",
+  });
+}
+
+function redirect(response, location) {
+  send(response, 302, "", {
+    Location: location,
+    "Cache-Control": "no-store",
+  });
+}
+
+async function handleLoginRequest(request, response) {
+  if (request.method !== "POST") {
+    sendJson(response, 405, { ok: false, error: "METHOD_NOT_ALLOWED" });
+    return;
+  }
+
+  if (!isAuthEnabled()) {
+    sendJson(response, 200, { ok: true, auth_enabled: false, authenticated: true });
+    return;
+  }
+
+  let body;
+  try {
+    body = await readJsonBody(request);
+  } catch (error) {
+    const status = error.message === "REQUEST_BODY_TOO_LARGE" ? 413 : 400;
+    sendJson(response, status, { ok: false, error: error.message });
+    return;
+  }
+
+  if (String(body.password || "") !== authPassword) {
+    sendJson(response, 401, { ok: false, error: "INVALID_PASSWORD", message: "Password is incorrect." });
+    return;
+  }
+
+  const issuedAt = currentUnixSeconds();
+  const token = createSessionToken(issuedAt);
+  sendJson(
+    response,
+    200,
+    {
+      ok: true,
+      auth_enabled: true,
+      authenticated: true,
+      token,
+      expires_at: new Date((issuedAt + getSessionTtlSeconds()) * 1000).toISOString(),
+    },
+    {
+      "Set-Cookie": buildSessionCookie(token, request),
+    },
+  );
+}
+
+function handleLogoutRequest(request, response) {
+  if (request.method !== "POST") {
+    sendJson(response, 405, { ok: false, error: "METHOD_NOT_ALLOWED" });
+    return;
+  }
+  sendJson(response, 200, { ok: true, authenticated: false }, { "Set-Cookie": buildClearSessionCookie(request) });
+}
+
+function handleSessionRequest(request, response) {
+  if (request.method !== "GET") {
+    sendJson(response, 405, { ok: false, error: "METHOD_NOT_ALLOWED" });
+    return;
+  }
+  sendJson(response, 200, {
+    ok: true,
+    auth_enabled: isAuthEnabled(),
+    authenticated: isAuthenticated(request),
+  });
+}
+
+function serveLoginPage(request, response) {
+  if (isAuthenticated(request)) {
+    redirect(response, "/");
+    return;
+  }
+
+  send(response, 200, renderLoginPage(), {
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "no-store",
+  });
+}
+
+function renderLoginPage() {
+  return `<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>登录 - 陪玩副驾 AI</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: #f5f7fb;
+      color: #172033;
+      font-family: Inter, "Microsoft YaHei", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main {
+      width: min(92vw, 380px);
+      padding: 28px;
+      background: #fff;
+      border: 1px solid #e3e8f0;
+      border-radius: 8px;
+      box-shadow: 0 18px 50px rgba(23, 32, 51, 0.12);
+    }
+    h1 { margin: 0 0 8px; font-size: 24px; line-height: 1.2; }
+    p { margin: 0 0 22px; color: #647086; line-height: 1.6; }
+    label { display: grid; gap: 8px; color: #3b4659; font-weight: 700; }
+    input {
+      width: 100%;
+      height: 44px;
+      padding: 0 12px;
+      border: 1px solid #cfd7e6;
+      border-radius: 6px;
+      font: inherit;
+    }
+    input:focus { border-color: #2563eb; outline: 3px solid rgba(37, 99, 235, 0.16); }
+    button {
+      width: 100%;
+      height: 44px;
+      margin-top: 18px;
+      border: 0;
+      border-radius: 6px;
+      background: #2563eb;
+      color: #fff;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    button:disabled { cursor: progress; opacity: 0.72; }
+    .error { min-height: 22px; margin-top: 14px; color: #b42318; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>陪玩副驾 AI</h1>
+    <p>输入服务器访问密码后继续使用。</p>
+    <form id="login-form">
+      <label>
+        访问密码
+        <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+      </label>
+      <button type="submit">登录</button>
+      <div class="error" id="error" role="alert"></div>
+    </form>
+  </main>
+  <script>
+    const form = document.querySelector("#login-form");
+    const button = form.querySelector("button");
+    const errorBox = document.querySelector("#error");
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      errorBox.textContent = "";
+      button.disabled = true;
+      try {
+        const response = await fetch("/api/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: form.password.value })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) throw new Error(data.message || "登录失败");
+        const next = new URLSearchParams(window.location.search).get("next") || "/";
+        window.location.assign(next.startsWith("/") && !next.startsWith("//") ? next : "/");
+      } catch (error) {
+        errorBox.textContent = error.message || "登录失败";
+      } finally {
+        button.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>`;
+}
 
 async function handleAiRequest(request, response) {
   if (request.method !== "POST") {
@@ -327,6 +655,11 @@ function parseBoolean(value) {
   return ["1", "true", "yes", "on"].includes(String(value || "").toLowerCase());
 }
 
+function sanitizeCookieName(value) {
+  const clean = String(value || "").replace(/[^A-Za-z0-9_-]/g, "");
+  return clean || "pwai_session";
+}
+
 function buildSystemPrompt(kind) {
   return [
     "你是陪玩副驾 AI 的服务端生成器。",
@@ -371,6 +704,10 @@ function normalizeProviderOutput(kind, output) {
   return normalized;
 }
 
-server.listen(port, host, () => {
-  console.log(`pwai server listening on http://${host}:${port}`);
-});
+if (require.main === module) {
+  server.listen(port, host, () => {
+    console.log(`pwai server listening on http://${host}:${port}`);
+  });
+}
+
+module.exports = { server };

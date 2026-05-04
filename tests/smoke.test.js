@@ -195,9 +195,20 @@ test("deployment files expose start script and health check", () => {
   const githubDeployDoc = read(githubDeployDocPath);
 
   assert.equal(packageJson.scripts.start, "node server.js");
-  assert.equal(packageJson.scripts.test, "node tests/smoke.test.js");
+  assert.match(packageJson.scripts.test, /tests\/smoke\.test\.js/);
+  assert.match(packageJson.scripts.test, /tests\/auth-flow\.test\.js/);
   assert.match(server, /\/healthz/);
   assert.match(server, /\/api\/ai/);
+  assert.match(server, /\/login/);
+  assert.match(server, /\/api\/login/);
+  assert.match(server, /\/api\/logout/);
+  assert.match(server, /\/api\/session/);
+  assert.match(server, /AUTH_PASSWORD/);
+  assert.match(server, /AUTH_SESSION_SECRET/);
+  assert.match(server, /HttpOnly/);
+  assert.match(server, /Authorization/);
+  assert.match(server, /Bearer/);
+  assert.match(server, /AUTH_REQUIRED/);
   assert.match(server, /AI_PROVIDER_NOT_CONFIGURED/);
   assert.match(server, /chat\/completions/);
   assert.match(server, /AI_API_MODE/);
@@ -241,6 +252,11 @@ test("versioned server config templates target the deployed service", () => {
   assert.match(env, /AI_API_MODE=chat/);
   assert.match(env, /AI_TIMEOUT_MS=30000/);
   assert.match(env, /AI_HTTP_CLIENT=fetch/);
+  assert.match(env, /AUTH_PASSWORD=/);
+  assert.match(env, /AUTH_SESSION_SECRET=/);
+  assert.match(env, /AUTH_SESSION_TTL_SECONDS=604800/);
+  assert.match(env, /AUTH_COOKIE_NAME=pwai_session/);
+  assert.match(env, /AUTH_COOKIE_SECURE=true/);
   assert.match(env, /OPENAI_REASONING_EFFORT=/);
   assert.match(env, /OPENAI_DISABLE_RESPONSE_STORAGE=true/);
   assert.match(env, /OPENAI_RESPONSE_FORMAT=json_object/);
@@ -254,6 +270,23 @@ test("versioned server config templates target the deployed service", () => {
   assert.match(installNginx, /sites-enabled\/pwai/);
   assert.doesNotMatch(installNginx, /conf\.d\/pwai\.conf/);
   assert.match(installNginx, /nginx -t/);
+});
+
+test("login protection is documented and exposed in settings", () => {
+  const app = read(appPath);
+  const readme = read(path.join(root, "README.md"));
+  const deployDoc = read(deployDocPath);
+  const githubDeployDoc = read(githubDeployDocPath);
+
+  assert.match(app, /data-logout/);
+  assert.match(app, /\/api\/logout/);
+  assert.match(app, /window\.location\.assign\("\/login"\)/);
+  assert.match(readme, /服务端登录保护/);
+  assert.match(deployDoc, /AUTH_PASSWORD=设置一个强密码/);
+  assert.match(deployDoc, /\/api\/login/);
+  assert.match(deployDoc, /Authorization: Bearer <token>/);
+  assert.match(githubDeployDoc, /AUTH_PASSWORD/);
+  assert.match(githubDeployDoc, /HttpOnly/);
 });
 
 test("frontend exposes async remote AI fallback path", () => {

@@ -5,7 +5,7 @@
   "description": "陪玩副驾 AI 静态可交互原型",
   "scripts": {
     "start": "node server.js",
-    "test": "node tests/smoke.test.js"
+    "test": "node tests/smoke.test.js && node tests/auth-flow.test.js"
   },
   "engines": {
     "node": ">=18"

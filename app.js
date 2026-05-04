@@ -309,6 +309,10 @@ async function generateAiOutputAsync(kind, payload) {
       }),
     });
     const data = await response.json();
+    if (response.status === 401 && data.error === "AUTH_REQUIRED") {
+      window.location.assign("/login");
+      throw new Error("登录已过期，请重新登录");
+    }
     if (!response.ok || data.ok === false) {
       throw new Error(data.message || data.error || "远程 AI 请求失败");
     }
@@ -1230,6 +1234,20 @@ function renderSettings() {
           </div>
         </div>
       </section>
+
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">登录状态</h3>
+            <p class="card-subtitle">退出后需要重新输入服务器访问密码。</p>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="button-row">
+            <button class="danger-button" type="button" data-logout>退出登录</button>
+          </div>
+        </div>
+      </section>
     </div>
   `;
 
@@ -1268,6 +1286,13 @@ function renderSettings() {
     saveState();
     toastMessage("已恢复示例数据");
     renderSettings();
+  });
+  appView.querySelector("[data-logout]").addEventListener("click", async () => {
+    try {
+      await fetch("/api/logout", { method: "POST" });
+    } finally {
+      window.location.assign("/login");
+    }
   });
 }
 
