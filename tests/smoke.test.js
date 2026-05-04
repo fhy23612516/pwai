@@ -218,6 +218,9 @@ test("versioned server config templates target the deployed service", () => {
   assert.match(nginx, /server_name pwai\.heiheihei\.pw/);
   assert.match(nginx, /proxy_pass http:\/\/127\.0\.0\.1:4188/);
   assert.match(installSystemd, /systemctl restart pwai/);
+  assert.match(installNginx, /sites-available\/pwai/);
+  assert.match(installNginx, /sites-enabled\/pwai/);
+  assert.doesNotMatch(installNginx, /conf\.d\/pwai\.conf/);
   assert.match(installNginx, /nginx -t/);
 });
 

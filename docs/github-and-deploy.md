@@ -263,7 +263,7 @@ cd /opt/pwai
 bash deploy/install-nginx.sh
 ```
 
-脚本会把 `deploy/nginx-pwai.conf` 复制到 `/etc/nginx/conf.d/pwai.conf`，执行 `nginx -t` 并 reload。
+脚本会把 `deploy/nginx-pwai.conf` 复制到 `/etc/nginx/sites-available/pwai`，并创建软链接 `/etc/nginx/sites-enabled/pwai`，然后执行 `nginx -t` 并 reload。
 
 Nginx 配置示例：
 
@@ -286,6 +286,15 @@ server {
 检查并重载：
 
 ```bash
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+如果手动配置，推荐保持和服务器其他程序一致：
+
+```bash
+sudo cp /opt/pwai/deploy/nginx-pwai.conf /etc/nginx/sites-available/pwai
+sudo ln -sfn /etc/nginx/sites-available/pwai /etc/nginx/sites-enabled/pwai
 sudo nginx -t
 sudo systemctl reload nginx
 ```

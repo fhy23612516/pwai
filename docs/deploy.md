@@ -64,6 +64,15 @@ bash deploy/install-systemd.sh
 bash deploy/install-nginx.sh
 ```
 
+Nginx 安装脚本默认使用：
+
+```text
+/etc/nginx/sites-available/pwai
+/etc/nginx/sites-enabled/pwai
+```
+
+这与 Debian / Ubuntu 常见站点配置方式一致，也方便和同服务器上的其他程序统一管理。
+
 实际环境变量文件位于：
 
 ```text
