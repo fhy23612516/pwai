@@ -201,10 +201,14 @@ test("deployment files expose start script and health check", () => {
   assert.match(server, /\/api\/ai/);
   assert.match(server, /\/login/);
   assert.match(server, /\/api\/login/);
+  assert.match(server, /\/api\/register/);
   assert.match(server, /\/api\/logout/);
   assert.match(server, /\/api\/session/);
-  assert.match(server, /AUTH_PASSWORD/);
+  assert.match(server, /AUTH_USERS_FILE/);
+  assert.match(server, /AUTH_ALLOW_REGISTRATION/);
   assert.match(server, /AUTH_SESSION_SECRET/);
+  assert.match(server, /scryptSync/);
+  assert.match(server, /password_hash/);
   assert.match(server, /HttpOnly/);
   assert.match(server, /Authorization/);
   assert.match(server, /Bearer/);
@@ -258,7 +262,8 @@ test("versioned server config templates target the deployed service", () => {
   assert.match(env, /AI_API_MODE=chat/);
   assert.match(env, /AI_TIMEOUT_MS=30000/);
   assert.match(env, /AI_HTTP_CLIENT=fetch/);
-  assert.match(env, /AUTH_PASSWORD=/);
+  assert.match(env, /AUTH_USERS_FILE=\/etc\/pwai\/users\.json/);
+  assert.match(env, /AUTH_ALLOW_REGISTRATION=true/);
   assert.match(env, /AUTH_SESSION_SECRET=/);
   assert.match(env, /AUTH_SESSION_TTL_SECONDS=604800/);
   assert.match(env, /AUTH_COOKIE_NAME=pwai_session/);
@@ -278,20 +283,25 @@ test("versioned server config templates target the deployed service", () => {
   assert.match(installNginx, /nginx -t/);
 });
 
-test("login protection is documented and exposed in settings", () => {
+test("account auth is documented and exposed in settings", () => {
   const app = read(appPath);
   const readme = read(path.join(root, "README.md"));
   const deployDoc = read(deployDocPath);
   const githubDeployDoc = read(githubDeployDocPath);
 
   assert.match(app, /data-logout/);
+  assert.match(app, /currentUser/);
+  assert.match(app, /activeStorageKey/);
+  assert.match(app, /\$\{STORAGE_KEY\}:\$\{data\.user\.id\}/);
   assert.match(app, /\/api\/logout/);
   assert.match(app, /window\.location\.assign\("\/login"\)/);
-  assert.match(readme, /服务端登录保护/);
-  assert.match(deployDoc, /AUTH_PASSWORD=设置一个强密码/);
+  assert.match(readme, /账号注册 \/ 登录/);
+  assert.match(deployDoc, /账号注册和登录/);
+  assert.match(deployDoc, /AUTH_USERS_FILE=\/etc\/pwai\/users\.json/);
+  assert.match(deployDoc, /\/api\/register/);
   assert.match(deployDoc, /\/api\/login/);
   assert.match(deployDoc, /Authorization: Bearer <token>/);
-  assert.match(githubDeployDoc, /AUTH_PASSWORD/);
+  assert.match(githubDeployDoc, /users\.json/);
   assert.match(githubDeployDoc, /HttpOnly/);
   assert.match(githubDeployDoc, /OPENAI_MAX_OUTPUT_TOKENS/);
 });

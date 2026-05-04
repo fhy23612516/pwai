@@ -11,11 +11,13 @@ const maxBodyBytes = Number(process.env.MAX_BODY_BYTES || 65536);
 const aiTimeoutMs = Number(process.env.AI_TIMEOUT_MS || 30000);
 const aiMaxOutputTokens = Number(process.env.OPENAI_MAX_OUTPUT_TOKENS || 1200);
 const defaultBaseUrl = "https://api.openai.com/v1";
-const authPassword = process.env.AUTH_PASSWORD || "";
+const authUsersFile = process.env.AUTH_USERS_FILE || path.join(process.env.AUTH_DATA_DIR || "/etc/pwai", "users.json");
+const authAllowRegistration = !["0", "false", "no", "off"].includes(String(process.env.AUTH_ALLOW_REGISTRATION ?? "true").toLowerCase());
 const authCookieName = sanitizeCookieName(process.env.AUTH_COOKIE_NAME || "pwai_session");
-const authSessionSecret = process.env.AUTH_SESSION_SECRET || authPassword;
+const authSessionSecret = process.env.AUTH_SESSION_SECRET || process.env.AUTH_PASSWORD || "pwai-dev-session-secret";
 const authSessionTtlSeconds = Number(process.env.AUTH_SESSION_TTL_SECONDS || 604800);
 const authCookieSecure = parseBoolean(process.env.AUTH_COOKIE_SECURE);
+const authUsernamePattern = /^[A-Za-z0-9_-]{3,32}$/;
 
 const outputSchemas = {
   prep: {
@@ -127,6 +129,11 @@ const server = http.createServer((request, response) => {
     return;
   }
 
+  if (requestPath === "/api/register") {
+    handleRegisterRequest(request, response);
+    return;
+  }
+
   if (requestPath === "/api/logout") {
     handleLogoutRequest(request, response);
     return;
@@ -175,7 +182,7 @@ function getRequestPath(request) {
 }
 
 function isAuthEnabled() {
-  return Boolean(authPassword);
+  return true;
 }
 
 function getSessionTtlSeconds() {
@@ -186,27 +193,40 @@ function currentUnixSeconds() {
   return Math.floor(Date.now() / 1000);
 }
 
-function createSessionToken(issuedAt = currentUnixSeconds()) {
+function createSessionToken(userId, issuedAt = currentUnixSeconds()) {
   const timestamp = String(issuedAt);
-  return `${timestamp}.${signSessionTimestamp(timestamp)}`;
+  const id = String(userId || "");
+  return `${timestamp}.${id}.${signSessionPayload(timestamp, id)}`;
 }
 
-function signSessionTimestamp(timestamp) {
-  return crypto.createHmac("sha256", authSessionSecret || authPassword).update(String(timestamp)).digest("base64url");
+function signSessionPayload(timestamp, userId) {
+  return crypto.createHmac("sha256", authSessionSecret).update(`${timestamp}.${userId}`).digest("base64url");
+}
+
+function getSessionFromToken(token) {
+  if (!token) return null;
+  const parts = String(token).split(".");
+  if (parts.length !== 3) return null;
+
+  const issuedAt = Number(parts[0]);
+  if (!Number.isInteger(issuedAt)) return null;
+  const now = currentUnixSeconds();
+  if (issuedAt > now + 60) return null;
+  if (now - issuedAt > getSessionTtlSeconds()) return null;
+  if (!timingSafeEqual(parts[2], signSessionPayload(parts[0], parts[1]))) return null;
+
+  const user = findUserById(parts[1]);
+  if (!user) return null;
+
+  return {
+    user_id: user.id,
+    username: user.username,
+    issued_at: issuedAt,
+  };
 }
 
 function validateSessionToken(token) {
-  if (!isAuthEnabled() || !token) return false;
-  const parts = String(token).split(".");
-  if (parts.length !== 2) return false;
-
-  const issuedAt = Number(parts[0]);
-  if (!Number.isInteger(issuedAt)) return false;
-  const now = currentUnixSeconds();
-  if (issuedAt > now + 60) return false;
-  if (now - issuedAt > getSessionTtlSeconds()) return false;
-
-  return timingSafeEqual(parts[1], signSessionTimestamp(parts[0]));
+  return Boolean(getSessionFromToken(token));
 }
 
 function timingSafeEqual(left, right) {
@@ -224,8 +244,118 @@ function getSessionTokenFromRequest(request) {
 }
 
 function isAuthenticated(request) {
-  if (!isAuthEnabled()) return true;
   return validateSessionToken(getSessionTokenFromRequest(request));
+}
+
+function getSessionFromRequest(request) {
+  return getSessionFromToken(getSessionTokenFromRequest(request));
+}
+
+function ensureUsersFile() {
+  const directory = path.dirname(authUsersFile);
+  fs.mkdirSync(directory, { recursive: true });
+  if (!fs.existsSync(authUsersFile)) {
+    fs.writeFileSync(authUsersFile, JSON.stringify({ users: [] }, null, 2));
+  }
+}
+
+function readUsersStore() {
+  ensureUsersFile();
+  try {
+    const parsed = JSON.parse(fs.readFileSync(authUsersFile, "utf8"));
+    return {
+      users: Array.isArray(parsed.users) ? parsed.users : [],
+    };
+  } catch {
+    return { users: [] };
+  }
+}
+
+function writeUsersStore(store) {
+  ensureUsersFile();
+  const temporaryPath = `${authUsersFile}.${process.pid}.tmp`;
+  fs.writeFileSync(temporaryPath, JSON.stringify({ users: store.users || [] }, null, 2));
+  fs.renameSync(temporaryPath, authUsersFile);
+}
+
+function normalizeUsername(username) {
+  return String(username || "").trim().toLowerCase();
+}
+
+function validateUsername(username) {
+  const normalized = normalizeUsername(username);
+  if (!authUsernamePattern.test(normalized)) {
+    return {
+      ok: false,
+      error: "INVALID_USERNAME",
+      message: "账号只能使用 3-32 位字母、数字、下划线或短横线。",
+    };
+  }
+  return { ok: true, username: normalized };
+}
+
+function validatePassword(password) {
+  if (String(password || "").length < 8) {
+    return {
+      ok: false,
+      error: "WEAK_PASSWORD",
+      message: "密码至少需要 8 位。",
+    };
+  }
+  return { ok: true };
+}
+
+function findUserById(userId) {
+  return readUsersStore().users.find((user) => user.id === userId) || null;
+}
+
+function findUserByUsername(username) {
+  const normalized = normalizeUsername(username);
+  return readUsersStore().users.find((user) => user.username === normalized) || null;
+}
+
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString("base64url");
+  const hash = crypto.scryptSync(String(password), salt, 64).toString("base64url");
+  return `scrypt$${salt}$${hash}`;
+}
+
+function verifyPassword(password, storedHash) {
+  const [algorithm, salt, hash] = String(storedHash || "").split("$");
+  if (algorithm !== "scrypt" || !salt || !hash) return false;
+  const expected = Buffer.from(hash, "base64url");
+  const actual = crypto.scryptSync(String(password), salt, 64);
+  if (expected.length !== actual.length) return false;
+  return crypto.timingSafeEqual(expected, actual);
+}
+
+function publicUser(user) {
+  if (!user) return null;
+  return {
+    id: user.id,
+    username: user.username,
+    created_at: user.created_at,
+  };
+}
+
+function sendAuthenticatedSession(response, request, user) {
+  const issuedAt = currentUnixSeconds();
+  const token = createSessionToken(user.id, issuedAt);
+  sendJson(
+    response,
+    200,
+    {
+      ok: true,
+      auth_enabled: true,
+      authenticated: true,
+      user: publicUser(user),
+      token,
+      expires_at: new Date((issuedAt + getSessionTtlSeconds()) * 1000).toISOString(),
+    },
+    {
+      "Set-Cookie": buildSessionCookie(token, request),
+    },
+  );
 }
 
 function parseCookies(cookieHeader) {
@@ -299,8 +429,38 @@ async function handleLoginRequest(request, response) {
     return;
   }
 
-  if (!isAuthEnabled()) {
-    sendJson(response, 200, { ok: true, auth_enabled: false, authenticated: true });
+  let body;
+  try {
+    body = await readJsonBody(request);
+  } catch (error) {
+    const status = error.message === "REQUEST_BODY_TOO_LARGE" ? 413 : 400;
+    sendJson(response, status, { ok: false, error: error.message });
+    return;
+  }
+
+  const usernameResult = validateUsername(body.username);
+  if (!usernameResult.ok) {
+    sendJson(response, 400, usernameResult);
+    return;
+  }
+
+  const user = findUserByUsername(usernameResult.username);
+  if (!user || !verifyPassword(body.password, user.password_hash)) {
+    sendJson(response, 401, { ok: false, error: "INVALID_CREDENTIALS", message: "账号或密码不正确。" });
+    return;
+  }
+
+  sendAuthenticatedSession(response, request, user);
+}
+
+async function handleRegisterRequest(request, response) {
+  if (request.method !== "POST") {
+    sendJson(response, 405, { ok: false, error: "METHOD_NOT_ALLOWED" });
+    return;
+  }
+
+  if (!authAllowRegistration) {
+    sendJson(response, 403, { ok: false, error: "REGISTRATION_DISABLED", message: "当前服务器已关闭注册。" });
     return;
   }
 
@@ -313,27 +473,36 @@ async function handleLoginRequest(request, response) {
     return;
   }
 
-  if (String(body.password || "") !== authPassword) {
-    sendJson(response, 401, { ok: false, error: "INVALID_PASSWORD", message: "Password is incorrect." });
+  const usernameResult = validateUsername(body.username);
+  if (!usernameResult.ok) {
+    sendJson(response, 400, usernameResult);
     return;
   }
 
-  const issuedAt = currentUnixSeconds();
-  const token = createSessionToken(issuedAt);
-  sendJson(
-    response,
-    200,
-    {
-      ok: true,
-      auth_enabled: true,
-      authenticated: true,
-      token,
-      expires_at: new Date((issuedAt + getSessionTtlSeconds()) * 1000).toISOString(),
-    },
-    {
-      "Set-Cookie": buildSessionCookie(token, request),
-    },
-  );
+  const passwordResult = validatePassword(body.password);
+  if (!passwordResult.ok) {
+    sendJson(response, 400, passwordResult);
+    return;
+  }
+
+  const store = readUsersStore();
+  if (store.users.some((user) => user.username === usernameResult.username)) {
+    sendJson(response, 409, { ok: false, error: "USERNAME_TAKEN", message: "这个账号已经注册。" });
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const user = {
+    id: crypto.randomUUID(),
+    username: usernameResult.username,
+    password_hash: hashPassword(body.password),
+    created_at: now,
+    updated_at: now,
+  };
+  store.users.push(user);
+  writeUsersStore(store);
+
+  sendAuthenticatedSession(response, request, user);
 }
 
 function handleLogoutRequest(request, response) {
@@ -349,10 +518,13 @@ function handleSessionRequest(request, response) {
     sendJson(response, 405, { ok: false, error: "METHOD_NOT_ALLOWED" });
     return;
   }
+  const session = getSessionFromRequest(request);
   sendJson(response, 200, {
     ok: true,
     auth_enabled: isAuthEnabled(),
-    authenticated: isAuthenticated(request),
+    registration_enabled: authAllowRegistration,
+    authenticated: Boolean(session),
+    user: session ? { id: session.user_id, username: session.username } : null,
   });
 }
 
@@ -396,7 +568,7 @@ function renderLoginPage() {
     }
     h1 { margin: 0 0 8px; font-size: 24px; line-height: 1.2; }
     p { margin: 0 0 22px; color: #647086; line-height: 1.6; }
-    label { display: grid; gap: 8px; color: #3b4659; font-weight: 700; }
+    label { display: grid; gap: 8px; margin-top: 14px; color: #3b4659; font-weight: 700; }
     input {
       width: 100%;
       height: 44px;
@@ -406,6 +578,18 @@ function renderLoginPage() {
       font: inherit;
     }
     input:focus { border-color: #2563eb; outline: 3px solid rgba(37, 99, 235, 0.16); }
+    .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 18px; }
+    .tab {
+      height: 38px;
+      border: 1px solid #cfd7e6;
+      border-radius: 6px;
+      background: #fff;
+      color: #3b4659;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .tab.active { border-color: #2563eb; background: rgba(37, 99, 235, 0.1); color: #1d4ed8; }
     button {
       width: 100%;
       height: 44px;
@@ -425,29 +609,57 @@ function renderLoginPage() {
 <body>
   <main>
     <h1>陪玩副驾 AI</h1>
-    <p>输入服务器访问密码后继续使用。</p>
-    <form id="login-form">
+    <p id="intro">登录账号后继续使用。第一次进入请先注册。</p>
+    <div class="tabs" role="tablist" aria-label="登录或注册">
+      <button class="tab active" type="button" data-mode="login">登录</button>
+      <button class="tab" type="button" data-mode="register">注册</button>
+    </div>
+    <form id="auth-form">
       <label>
-        访问密码
+        账号
+        <input id="username" name="username" type="text" autocomplete="username" placeholder="3-32 位字母、数字、_ 或 -" required autofocus>
+      </label>
+      <label>
+        密码
         <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
       </label>
-      <button type="submit">登录</button>
+      <button type="submit" id="submit-button">登录</button>
       <div class="error" id="error" role="alert"></div>
     </form>
   </main>
   <script>
-    const form = document.querySelector("#login-form");
-    const button = form.querySelector("button");
+    const form = document.querySelector("#auth-form");
+    const tabs = Array.from(document.querySelectorAll("[data-mode]"));
+    const intro = document.querySelector("#intro");
+    const button = document.querySelector("#submit-button");
     const errorBox = document.querySelector("#error");
+    let mode = "login";
+
+    function setMode(nextMode) {
+      mode = nextMode;
+      tabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.mode === mode));
+      intro.textContent = mode === "login" ? "登录账号后继续使用。第一次进入请先注册。" : "注册一个账号，后续用账号密码登录。";
+      button.textContent = mode === "login" ? "登录" : "注册并进入";
+      form.password.autocomplete = mode === "login" ? "current-password" : "new-password";
+      errorBox.textContent = "";
+    }
+
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => setMode(tab.dataset.mode));
+    });
+
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       errorBox.textContent = "";
       button.disabled = true;
       try {
-        const response = await fetch("/api/login", {
+        const response = await fetch(mode === "login" ? "/api/login" : "/api/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ password: form.password.value })
+          body: JSON.stringify({
+            username: form.username.value,
+            password: form.password.value
+          })
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok || !data.ok) throw new Error(data.message || "登录失败");

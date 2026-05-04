@@ -4,5 +4,7 @@ build/
 coverage/
 output/
 *.log
+users.json
+*.tmp
 .DS_Store
 Thumbs.db

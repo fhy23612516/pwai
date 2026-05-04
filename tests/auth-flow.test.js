@@ -1,13 +1,20 @@
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
 
 const port = 4299;
 const baseUrl = `http://127.0.0.1:${port}`;
+const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pwai-auth-"));
+const usersFile = path.join(tempDir, "users.json");
 
 process.env.HOST = "127.0.0.1";
 process.env.PORT = String(port);
-process.env.AUTH_PASSWORD = "test-pass";
+process.env.AUTH_USERS_FILE = usersFile;
+process.env.AUTH_ALLOW_REGISTRATION = "true";
 process.env.AUTH_SESSION_SECRET = "test-secret";
 process.env.AUTH_SESSION_TTL_SECONDS = "3600";
+process.env.AUTH_COOKIE_SECURE = "false";
 
 const { server } = require("../server");
 
@@ -71,17 +78,52 @@ async function main() {
     assert.equal(anonymousAi.status, 401);
     assert.equal((await anonymousAi.json()).error, "AUTH_REQUIRED");
 
+    const weakRegister = await request("/api/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: "alice", password: "short" }),
+    });
+    assert.equal(weakRegister.status, 400);
+    assert.equal((await weakRegister.json()).error, "WEAK_PASSWORD");
+
+    const register = await request("/api/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: "Alice_01", password: "test-pass-123" }),
+    });
+    assert.equal(register.status, 200);
+    const registerCookie = register.headers.get("set-cookie") || "";
+    assert.match(registerCookie, /pwai_session=/);
+    assert.match(registerCookie, /HttpOnly/);
+    const registeredSession = await register.json();
+    assert.equal(registeredSession.ok, true);
+    assert.equal(registeredSession.user.username, "alice_01");
+    assert.equal(typeof registeredSession.token, "string");
+
+    const stored = JSON.parse(fs.readFileSync(usersFile, "utf8"));
+    assert.equal(stored.users.length, 1);
+    assert.equal(stored.users[0].username, "alice_01");
+    assert.doesNotMatch(stored.users[0].password_hash, /test-pass-123/);
+    assert.match(stored.users[0].password_hash, /^scrypt\$/);
+
+    const duplicateRegister = await request("/api/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: "alice_01", password: "test-pass-123" }),
+    });
+    assert.equal(duplicateRegister.status, 409);
+
     const badLogin = await request("/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password: "wrong" }),
+      body: JSON.stringify({ username: "alice_01", password: "wrong" }),
     });
     assert.equal(badLogin.status, 401);
 
     const goodLogin = await request("/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password: "test-pass" }),
+      body: JSON.stringify({ username: "alice_01", password: "test-pass-123" }),
     });
     assert.equal(goodLogin.status, 200);
     const cookie = goodLogin.headers.get("set-cookie") || "";
@@ -89,6 +131,7 @@ async function main() {
     assert.match(cookie, /HttpOnly/);
     const session = await goodLogin.json();
     assert.equal(session.ok, true);
+    assert.equal(session.user.username, "alice_01");
     assert.equal(typeof session.token, "string");
 
     const cookieHome = await request("/", {
@@ -109,9 +152,10 @@ async function main() {
     assert.equal(logout.status, 200);
     assert.match(logout.headers.get("set-cookie") || "", /Max-Age=0/);
 
-    console.log("ok - password login protects pages, api, cookies, and bearer tokens");
+    console.log("ok - account registration and login protect pages, api, cookies, and bearer tokens");
   } finally {
     await stopServer();
+    fs.rmSync(tempDir, { recursive: true, force: true });
   }
 }
 

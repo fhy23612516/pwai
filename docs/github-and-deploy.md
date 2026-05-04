@@ -377,9 +377,9 @@ sudo systemctl restart pwai
 - 本项目服务器配置模板在 `deploy/` 目录下，应该一起纳入 Git
 - 实际 `/etc/pwai/pwai.env` 可以按服务器修改，不需要提交回仓库
 - 不要把 AI API Key 写入前端代码或 GitHub
-- 访问密码只放服务器环境变量，例如 `/etc/pwai/pwai.env` 里的 `AUTH_PASSWORD`
+- 账号文件只放服务器本地，例如 `/etc/pwai/users.json`，不要提交到 GitHub
 - 网页和小程序后续共用服务端 `/api/ai`
-- 网页登录使用服务端 `HttpOnly` Cookie；小程序可用 `/api/login` 返回的 token 走 `Authorization: Bearer <token>`
+- 网页注册 / 登录使用服务端 `HttpOnly` Cookie；小程序可用 `/api/login` 返回的 token 走 `Authorization: Bearer <token>`
 - 模型密钥只放服务器环境变量，例如 `/etc/pwai/pwai.env` 里的 `OPENAI_API_KEY`
 - 中转站 API 在 `/etc/pwai/pwai.env` 配置 `OPENAI_BASE_URL`、`OPENAI_MODEL`、`AI_API_MODE=chat`
 - 可用 `OPENAI_MODEL_PREP`、`OPENAI_MODEL_ASSIST`、`OPENAI_MODEL_REVIEW` 按场景选择模型

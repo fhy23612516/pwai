@@ -81,14 +81,15 @@ Nginx 安装脚本默认使用：
 
 这个文件可以按服务器实际端口修改，不需要提交到 Git。
 
-## 登录保护
+## 账号注册和登录
 
-当前登录功能是服务端访问密码保护，不需要数据库。网页登录成功后服务端写入 `HttpOnly` Cookie；小程序后续可以使用 `/api/login` 返回的 `token`，请求接口时放到 `Authorization: Bearer <token>`。
+当前登录功能是服务端账号系统，不需要数据库。用户第一次访问 `/login` 注册账号，后续用账号密码登录。密码使用 `scrypt` 加盐哈希后存到服务器文件，网页登录成功后服务端写入 `HttpOnly` Cookie；小程序后续可以使用 `/api/login` 返回的 `token`，请求接口时放到 `Authorization: Bearer <token>`。
 
-如需开启登录，在 `/etc/pwai/pwai.env` 增加：
+在 `/etc/pwai/pwai.env` 配置：
 
 ```text
-AUTH_PASSWORD=设置一个强密码
+AUTH_USERS_FILE=/etc/pwai/users.json
+AUTH_ALLOW_REGISTRATION=true
 AUTH_SESSION_SECRET=一串随机字符
 AUTH_SESSION_TTL_SECONDS=604800
 AUTH_COOKIE_NAME=pwai_session
@@ -111,14 +112,32 @@ sudo systemctl restart pwai
 
 ```bash
 curl -i http://127.0.0.1:4188/
-curl -i -X POST http://127.0.0.1:4188/api/login \
+curl -i -X POST http://127.0.0.1:4188/api/register \
   -H "Content-Type: application/json" \
-  -d '{"password":"你的访问密码"}'
+  -d '{"username":"testuser","password":"testpass123"}'
 ```
 
-未登录访问首页应跳转 `/login`，登录成功应返回 `Set-Cookie` 和 JSON。`/healthz` 会保持公开，方便 systemd、Nginx 或监控检查服务状态。
+未登录访问首页应跳转 `/login`，注册或登录成功应返回 `Set-Cookie` 和 JSON。`/healthz` 会保持公开，方便 systemd、Nginx 或监控检查服务状态。
 
-如果 `AUTH_PASSWORD` 留空，登录保护关闭，适合本地开发或临时内网调试。
+如果暂时只想开放已有账号登录，可以把注册关掉：
+
+```text
+AUTH_ALLOW_REGISTRATION=false
+```
+
+用户文件 `AUTH_USERS_FILE` 不要提交到 Git。建议放在 `/etc/pwai/users.json`，和真实 API Key 一样只保存在服务器。
+
+如果你还没配置 HTTPS 域名，只用 `http://服务器IP:端口` 测试，先用：
+
+```text
+AUTH_COOKIE_SECURE=false
+```
+
+等后面切到 HTTPS 域名后，再改回：
+
+```text
+AUTH_COOKIE_SECURE=true
+```
 
 远程 AI 相关环境变量也放在这里：
 

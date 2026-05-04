@@ -1,4 +1,6 @@
 const STORAGE_KEY = "pwai-state-v1";
+let currentUser = null;
+let activeStorageKey = STORAGE_KEY;
 
 const navItems = [
   { id: "home", label: "首页", icon: "H", title: "首页", eyebrow: "工作台" },
@@ -157,7 +159,7 @@ const defaultState = {
   },
 };
 
-let state = loadState();
+let state = structuredClone(defaultState);
 let currentBossFilter = "全部老板";
 let currentOrderFilter = "全部订单";
 let selectedBossId = null;
@@ -169,7 +171,7 @@ const viewEyebrow = document.querySelector("#view-eyebrow");
 const toast = document.querySelector("#toast");
 
 function loadState() {
-  const raw = localStorage.getItem(STORAGE_KEY);
+  const raw = localStorage.getItem(activeStorageKey);
   if (!raw) return structuredClone(defaultState);
   try {
     return { ...structuredClone(defaultState), ...JSON.parse(raw) };
@@ -179,7 +181,22 @@ function loadState() {
 }
 
 function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  localStorage.setItem(activeStorageKey, JSON.stringify(state));
+}
+
+async function initializeSession() {
+  try {
+    const response = await fetch("/api/session", { headers: { Accept: "application/json" } });
+    const data = await response.json();
+    if (data.authenticated && data.user?.id) {
+      currentUser = data.user;
+      activeStorageKey = `${STORAGE_KEY}:${data.user.id}`;
+    }
+  } catch {
+    currentUser = null;
+    activeStorageKey = STORAGE_KEY;
+  }
+  state = loadState();
 }
 
 function id(prefix) {
@@ -1175,6 +1192,20 @@ function renderSettings() {
   const exportText = JSON.stringify(state, null, 2);
   appView.innerHTML = `
     <div class="grid two">
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">当前账号</h3>
+            <p class="card-subtitle">${escapeHtml(currentUser?.username || "未读取到账号")} · 本地数据按账号隔离保存。</p>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="button-row">
+            <button class="danger-button" type="button" data-logout>退出登录</button>
+          </div>
+        </div>
+      </section>
+
       <form class="card" id="ai-settings-form">
         <div class="card-header">
           <div>
@@ -1231,20 +1262,6 @@ function renderSettings() {
           <div class="button-row" style="margin-top: 16px;">
             <button class="primary-button" type="button" data-import-json>导入数据</button>
             <button class="ghost-button" type="button" data-route="home">返回首页</button>
-          </div>
-        </div>
-      </section>
-
-      <section class="card">
-        <div class="card-header">
-          <div>
-            <h3 class="card-title">登录状态</h3>
-            <p class="card-subtitle">退出后需要重新输入服务器访问密码。</p>
-          </div>
-        </div>
-        <div class="card-body">
-          <div class="button-row">
-            <button class="danger-button" type="button" data-logout>退出登录</button>
           </div>
         </div>
       </section>
@@ -1816,4 +1833,4 @@ document.querySelector("#reset-demo").addEventListener("click", () => {
 });
 
 window.addEventListener("hashchange", render);
-render();
+initializeSession().then(render);

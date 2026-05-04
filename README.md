@@ -52,7 +52,7 @@ curl http://127.0.0.1:4173/healthz
 - 支持按场景选择模型：开单、实时辅助、订单复盘
 - 支持 `OPENAI_MAX_OUTPUT_TOKENS` 控制远程 AI 输出长度
 - AI 生成内容强化为多条可复制话术和具体临场判断，减少模板化表达
-- 服务端登录保护，支持网页 Cookie 和小程序 Bearer token
+- 账号注册 / 登录，支持网页 Cookie 和小程序 Bearer token
 - 内置 Node 静态服务器和 `/healthz` 健康检查
 
 AI 接口契约见 [docs/ai-contract.md](./docs/ai-contract.md)。
@@ -79,14 +79,14 @@ node .\tests\smoke.test.js
 - AI 输出 schema 统一适配
 - AI 契约文档关键字段存在
 - `/api/ai` 远程接口骨架存在
-- 登录接口、会话 Cookie 和受保护接口入口存在
+- 注册登录接口、会话 Cookie 和受保护接口入口存在
 - AI prompt 和本地模板包含更具体的生成质量约束
 - AI 输出包含可复制、可收藏卡片
 - 设置页备份导入结构校验
 - 老板画像建议结构化合并
 - 历史订单筛选规则
 - 移动端关键样式存在
-- 真实登录流程保护页面、接口、Cookie 和 Bearer token
+- 真实注册登录流程保护页面、接口、Cookie 和 Bearer token
 
 ## 版本管理
 
