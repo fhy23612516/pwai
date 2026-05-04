@@ -199,6 +199,11 @@ test("deployment files expose start script and health check", () => {
   assert.match(server, /\/healthz/);
   assert.match(server, /\/api\/ai/);
   assert.match(server, /AI_PROVIDER_NOT_CONFIGURED/);
+  assert.match(server, /chat\/completions/);
+  assert.match(server, /AI_API_MODE/);
+  assert.match(server, /OPENAI_BASE_URL/);
+  assert.match(server, /OPENAI_MODEL/);
+  assert.match(server, /AI_TIMEOUT_MS/);
   assert.match(server, /OPENAI_API_KEY/);
   assert.match(server, /process\.env\.PORT/);
   assert.match(deployDoc, /npm start/);
@@ -217,6 +222,10 @@ test("versioned server config templates target the deployed service", () => {
 
   assert.match(env, /PORT=4188/);
   assert.match(env, /OPENAI_API_KEY=/);
+  assert.match(env, /OPENAI_BASE_URL=https:\/\/api\.openai\.com\/v1/);
+  assert.match(env, /OPENAI_MODEL=gpt-4o-mini/);
+  assert.match(env, /AI_API_MODE=chat/);
+  assert.match(env, /AI_TIMEOUT_MS=30000/);
   assert.match(env, /MAX_BODY_BYTES=65536/);
   assert.match(service, /WorkingDirectory=\/opt\/pwai/);
   assert.match(service, /EnvironmentFile=-\/etc\/pwai\/pwai\.env/);

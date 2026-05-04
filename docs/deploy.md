@@ -85,11 +85,27 @@ Nginx 安装脚本默认使用：
 
 ```text
 OPENAI_API_KEY=你的服务端模型密钥
+OPENAI_BASE_URL=https://你的中转站域名/v1
+OPENAI_MODEL=中转站支持的模型名
+AI_API_MODE=chat
+AI_TIMEOUT_MS=30000
 ```
 
 不要把真实密钥提交到 GitHub。
 
-当前 `/api/ai` 已预留给网页和小程序共用。未配置 `OPENAI_API_KEY` 时，接口会返回明确错误，网页端会自动回退到本地模板。
+当前 `/api/ai` 已可供网页和小程序共用。未配置 `OPENAI_API_KEY` 时，接口会返回明确错误，网页端会自动回退到本地模板。
+
+大多数中转站兼容 `/v1/chat/completions`，所以默认使用：
+
+```text
+AI_API_MODE=chat
+```
+
+只有中转站明确支持 `/v1/responses` 时，才改成：
+
+```text
+AI_API_MODE=responses
+```
 
 ## 数据备份
 

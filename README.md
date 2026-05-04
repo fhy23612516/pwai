@@ -45,7 +45,7 @@ curl http://127.0.0.1:4173/healthz
 - 常用话术收藏
 - 设置页数据备份 / 导入 / 恢复示例
 - 本地 AI provider 适配层，预留真实模型接口
-- `/api/ai` 服务端代理骨架，供网页和小程序后续共用
+- `/api/ai` 服务端代理，支持 OpenAI 兼容中转站，供网页和小程序后续共用
 - 内置 Node 静态服务器和 `/healthz` 健康检查
 
 AI 接口契约见 [docs/ai-contract.md](./docs/ai-contract.md)。

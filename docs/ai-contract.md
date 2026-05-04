@@ -15,8 +15,20 @@ POST /api/ai
 当前远程接口骨架行为：
 
 - 未设置 `OPENAI_API_KEY`：返回 `503 AI_PROVIDER_NOT_CONFIGURED`
-- 已设置但 provider 未完成接入：返回 `501 AI_PROVIDER_NOT_IMPLEMENTED`
+- 已设置 `OPENAI_API_KEY`：按 `AI_API_MODE` 调用模型接口
+- `AI_API_MODE=chat`：调用 `{OPENAI_BASE_URL}/chat/completions`
+- `AI_API_MODE=responses`：调用 `{OPENAI_BASE_URL}/responses`
 - 前端收到错误会自动回退到本地模板
+
+中转站建议配置：
+
+```text
+OPENAI_API_KEY=你的中转站 Key
+OPENAI_BASE_URL=https://你的中转站域名/v1
+OPENAI_MODEL=中转站支持的模型名
+AI_API_MODE=chat
+AI_TIMEOUT_MS=30000
+```
 
 ## 通用安全规则
 

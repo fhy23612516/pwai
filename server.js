@@ -6,6 +6,35 @@ const root = __dirname;
 const host = process.env.HOST || "0.0.0.0";
 const port = Number(process.env.PORT || 4173);
 const maxBodyBytes = Number(process.env.MAX_BODY_BYTES || 65536);
+const aiTimeoutMs = Number(process.env.AI_TIMEOUT_MS || 30000);
+const defaultBaseUrl = "https://api.openai.com/v1";
+
+const outputSchemas = {
+  prep: {
+    serviceStrategy: "string",
+    opening: "string",
+    topics: "array",
+    warning: "string",
+    avoid: "array",
+  },
+  assist: {
+    judgment: "string",
+    currentStrategy: "string",
+    reply: "string",
+    gentle: "string",
+    lively: "string",
+    technical: "string",
+    avoid: "array",
+  },
+  review: {
+    summary: "string",
+    profileUpdate: "object",
+    nextOpening: "string",
+    nextContact: "string",
+    repurchase: "string",
+    performance: "string",
+  },
+};
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -135,11 +164,147 @@ async function handleAiRequest(request, response) {
     return;
   }
 
-  sendJson(response, 501, {
-    ok: false,
-    error: "AI_PROVIDER_NOT_IMPLEMENTED",
-    message: "Remote AI provider wiring is reserved for the next deployment step.",
-  });
+  try {
+    const output = await callAiProvider(kind, payload);
+    sendJson(response, 200, { ok: true, output });
+  } catch (error) {
+    console.error("[api/ai]", error);
+    sendJson(response, 502, {
+      ok: false,
+      error: "AI_PROVIDER_ERROR",
+      message: error.message || "Remote AI provider request failed.",
+    });
+  }
+}
+
+async function callAiProvider(kind, requestPayload) {
+  const mode = (process.env.AI_API_MODE || "chat").toLowerCase();
+  if (mode === "responses") {
+    return callResponsesApi(kind, requestPayload);
+  }
+  return callChatCompletionsApi(kind, requestPayload);
+}
+
+async function callChatCompletionsApi(kind, requestPayload) {
+  const baseUrl = normalizeBaseUrl(process.env.OPENAI_BASE_URL || defaultBaseUrl);
+  const body = {
+    model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+    temperature: Number(process.env.OPENAI_TEMPERATURE || 0.7),
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: buildSystemPrompt(kind) },
+      { role: "user", content: JSON.stringify(requestPayload) },
+    ],
+  };
+
+  const data = await postProviderJson(`${baseUrl}/chat/completions`, body);
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) throw new Error("AI provider returned empty chat content.");
+  return normalizeProviderOutput(kind, parseJsonContent(content));
+}
+
+async function callResponsesApi(kind, requestPayload) {
+  const baseUrl = normalizeBaseUrl(process.env.OPENAI_BASE_URL || defaultBaseUrl);
+  const body = {
+    model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+    input: [
+      { role: "system", content: buildSystemPrompt(kind) },
+      { role: "user", content: JSON.stringify(requestPayload) },
+    ],
+    text: {
+      format: {
+        type: "json_object",
+      },
+    },
+  };
+
+  const data = await postProviderJson(`${baseUrl}/responses`, body);
+  const content = data.output_text || data.output?.flatMap((item) => item.content || []).find((item) => item.type === "output_text")?.text;
+  if (!content) throw new Error("AI provider returned empty responses content.");
+  return normalizeProviderOutput(kind, parseJsonContent(content));
+}
+
+async function postProviderJson(url, body) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), aiTimeoutMs);
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    const text = await response.text();
+    let data;
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      throw new Error(`AI provider returned non-JSON response: ${text.slice(0, 120)}`);
+    }
+    if (!response.ok) {
+      const message = data.error?.message || data.message || `AI provider HTTP ${response.status}`;
+      throw new Error(message);
+    }
+    return data;
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error(`AI provider request timed out after ${aiTimeoutMs}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function normalizeBaseUrl(baseUrl) {
+  return String(baseUrl || defaultBaseUrl).replace(/\/+$/, "");
+}
+
+function buildSystemPrompt(kind) {
+  return [
+    "你是陪玩副驾 AI 的服务端生成器。",
+    "只输出 JSON，不要输出 Markdown、解释、代码块或多余文本。",
+    "输出必须符合当前场景字段，字段名使用英文。",
+    "话术自然、克制、短句优先，便于复制。",
+    "禁止诱导消费、PUA、情绪操控、隐私套话、过度暧昧、冒充真人或欺骗老板。",
+    `当前场景：${kind}`,
+    `必须包含字段：${Object.keys(outputSchemas[kind] || {}).join(", ")}`,
+  ].join("\n");
+}
+
+function parseJsonContent(content) {
+  const trimmed = String(content || "").trim();
+  if (!trimmed) throw new Error("AI provider returned empty JSON text.");
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    const match = trimmed.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error("AI provider response does not contain JSON.");
+    return JSON.parse(match[0]);
+  }
+}
+
+function normalizeProviderOutput(kind, output) {
+  const schema = outputSchemas[kind];
+  if (!schema) throw new Error(`Unknown AI kind: ${kind}`);
+  const normalized = { ...output };
+  for (const [field, type] of Object.entries(schema)) {
+    if (!(field in normalized)) {
+      normalized[field] = type === "array" ? [] : type === "object" ? {} : "";
+    }
+  }
+  if (kind === "review") {
+    normalized.profileUpdate = {
+      preferred_style: normalized.profileUpdate?.preferred_style || "",
+      disliked_style: normalized.profileUpdate?.disliked_style || "",
+      emotion_pattern: normalized.profileUpdate?.emotion_pattern || "",
+      notes: normalized.profileUpdate?.notes || "",
+    };
+  }
+  return normalized;
 }
 
 server.listen(port, host, () => {
