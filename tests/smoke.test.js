@@ -7,6 +7,7 @@ const root = path.resolve(__dirname, "..");
 const appPath = path.join(root, "app.js");
 const indexPath = path.join(root, "index.html");
 const stylesPath = path.join(root, "styles.css");
+const aiContractPath = path.join(root, "docs", "ai-contract.md");
 
 function read(filePath) {
   return fs.readFileSync(filePath, "utf8");
@@ -145,6 +146,24 @@ test("navigation covers the MVP workflow", () => {
     "renderSettings",
   ]) {
     assert.match(app, new RegExp(`function ${handler}\\(`), `${handler} should exist`);
+  }
+});
+
+test("AI contract documents required output schemas", () => {
+  const contract = read(aiContractPath);
+  for (const field of [
+    "serviceStrategy",
+    "opening",
+    "topics",
+    "judgment",
+    "currentStrategy",
+    "reply",
+    "summary",
+    "profileUpdate",
+    "nextContact",
+    "repurchase",
+  ]) {
+    assert.match(contract, new RegExp(field), `${field} should be documented`);
   }
 });
 

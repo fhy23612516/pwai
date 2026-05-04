@@ -28,6 +28,8 @@ npx serve .
 - 设置页数据备份 / 导入 / 恢复示例
 - 本地 AI provider 适配层，预留真实模型接口
 
+AI 接口契约见 [docs/ai-contract.md](./docs/ai-contract.md)。
+
 ## 测试方式
 
 运行烟测脚本：
@@ -44,6 +46,7 @@ node .\tests\smoke.test.js
 - 示例人设、老板、订单数据存在
 - 开单准备、实时辅助、订单复盘生成字段完整
 - AI 输出 schema 统一适配
+- AI 契约文档关键字段存在
 - AI 输出包含可复制、可收藏卡片
 - 设置页备份导入结构校验
 - 老板画像建议结构化合并

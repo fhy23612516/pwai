@@ -1,0 +1,93 @@
+# AI 输出契约
+
+当前应用通过本地模板模拟 AI 输出。后续接真实模型时，页面只依赖 `generateAiOutput(kind, payload)` 返回的结构化对象。
+
+真实模型必须返回 JSON，不要返回 Markdown。所有话术都应短句优先，便于复制。
+
+## 通用安全规则
+
+- 不诱导消费
+- 不使用 PUA、情绪操控或羞辱话术
+- 不建议陪玩欺骗老板
+- 不收集敏感隐私
+- 不生成过度暧昧或性暗示内容
+- 不伪装 AI 直接和老板聊天
+- 输出内容自然、克制、像真人能说出口
+
+## 开单准备 `prep`
+
+输入来源：
+
+- `player_profile`
+- `boss_profile`
+- `order_context`
+
+返回结构：
+
+```json
+{
+  "serviceStrategy": "本单服务策略",
+  "opening": "开场话术",
+  "topics": ["推荐聊天话题 1", "推荐聊天话题 2"],
+  "warning": "老板雷点提醒",
+  "avoid": ["不建议说的话 1", "不建议说的话 2"]
+}
+```
+
+## 实时辅助 `assist`
+
+输入来源：
+
+- `player_profile`
+- `boss_profile`
+- `situation`
+
+返回结构：
+
+```json
+{
+  "judgment": "情绪判断",
+  "currentStrategy": "当前最优策略",
+  "reply": "推荐话术",
+  "gentle": "温柔版本",
+  "lively": "活泼版本",
+  "technical": "技术版本",
+  "avoid": ["不建议说的话 1", "不建议说的话 2"]
+}
+```
+
+## 订单复盘 `review`
+
+输入来源：
+
+- `player_profile`
+- `boss_profile`
+- `order_review`
+
+返回结构：
+
+```json
+{
+  "summary": "本次订单总结",
+  "profileUpdate": {
+    "preferred_style": "建议写入老板偏好的内容",
+    "disliked_style": "建议写入老板雷点的内容",
+    "emotion_pattern": "建议写入情绪模式的内容",
+    "notes": "建议写入备注的内容"
+  },
+  "nextOpening": "下次开场话术",
+  "nextContact": "下次联系建议",
+  "repurchase": "高 / 中高 / 中 / 低",
+  "performance": "陪玩表现建议"
+}
+```
+
+## 前端容错
+
+前端会做轻量 normalize：
+
+- 缺失的字符串字段会补为空字符串
+- `topics` 和 `avoid` 会规范成数组
+- `profileUpdate` 会规范成对象
+
+但真实接口仍应尽量完整返回，避免页面出现空卡片。
