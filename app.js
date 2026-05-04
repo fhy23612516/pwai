@@ -98,6 +98,11 @@ const defaultState = {
       favorite_topics: "游戏操作、轻松吐槽、上次名场面",
       avoid_topics: "现实隐私、收入、感情问题",
       emotion_pattern: "输游戏后容易沉默，赢了之后会主动聊天",
+      memory_direction: "先低压陪打，等他主动接话后再聊上次名场面。",
+      memory_openers: "老板今天还打瓦吗？先轻松热两把，不急着上压力。\n上次后面那把手感挺顺，今天还按那个节奏来吗？",
+      memory_effective_lines: "你要是不想说话也没事，我先多帮你看信息。\n这波位置挺舒服，咱们先把节奏稳住。",
+      memory_risks: "不要追问沉默原因；不要催时长；不要评价刚才失误。",
+      memory_next_probe: "观察第一把输了之后是否还接话；如果接话慢就降低闲聊密度。",
       repurchase_level: "中高",
       last_order_at: "2026-05-01",
       notes: "适合从上次游戏表现切入，不要一开始太热闹。",
@@ -114,6 +119,11 @@ const defaultState = {
       favorite_topics: "阵容、节奏、英雄强度",
       avoid_topics: "评价他的操作、强行闲聊",
       emotion_pattern: "逆风时容易烦躁，需要明确指挥",
+      memory_direction: "少闲聊，多给明确游戏信息和下一波目标。",
+      memory_openers: "老板今天打王者的话，我先帮你看阵容和节奏。\n前两把咱们稳一点，先把开局处理舒服。",
+      memory_effective_lines: "这波先别急接，我们等技能再打。\n我帮你看小地图，你专心操作就行。",
+      memory_risks: "不要乱开玩笑；不要说他操作问题；逆风时别长篇复盘。",
+      memory_next_probe: "记录他更吃哪种指挥：报点型、节奏型还是英雄克制型。",
       repurchase_level: "中",
       last_order_at: "2026-05-02",
       notes: "更重视结果和稳定情绪。",
@@ -130,6 +140,11 @@ const defaultState = {
       favorite_topics: "节目效果、名场面、装备玄学",
       avoid_topics: "严肃复盘、掉分压力",
       emotion_pattern: "喜欢开玩笑，不喜欢太严肃",
+      memory_direction: "先接梗和节目效果，关键团前再收回来提醒信息。",
+      memory_openers: "老板今天还快乐局吗？赢了血赚，输了也有素材。\n上次节目效果挺足，今天看看还能不能复刻。",
+      memory_effective_lines: "这波节目效果拉满了，但下一波我帮你盯一下关键信息。\n先整活归整活，能赢咱也不放过。",
+      memory_risks: "不要严肃复盘；不要一直指挥；不要把掉分压力挂嘴边。",
+      memory_next_probe: "观察他今天想纯整活还是边玩边赢，别一开始就太认真。",
       repurchase_level: "高",
       last_order_at: "2026-05-03",
       notes: "适合快乐局，赢了血赚，输了也能做素材。",
@@ -288,7 +303,8 @@ function repurchaseClass(level) {
 }
 
 function getBoss(bossId) {
-  return state.bosses.find((boss) => boss.id === bossId);
+  const boss = state.bosses.find((item) => item.id === bossId);
+  return boss ? normalizeBoss(boss) : undefined;
 }
 
 function bossSelect(name = "boss_id", selected = "") {
@@ -299,6 +315,34 @@ function bossSelect(name = "boss_id", selected = "") {
         .join("")}
     </select>
   `;
+}
+
+function normalizeBossMemory(boss) {
+  return {
+    memory_direction: boss.memory_direction || "",
+    memory_openers: boss.memory_openers || "",
+    memory_effective_lines: boss.memory_effective_lines || "",
+    memory_risks: boss.memory_risks || "",
+    memory_next_probe: boss.memory_next_probe || "",
+  };
+}
+
+function bossMemoryText(boss) {
+  const memory = normalizeBossMemory(boss || {});
+  return [
+    memory.memory_direction ? `沟通方向：${memory.memory_direction}` : "",
+    memory.memory_openers ? `可复用开场：${memory.memory_openers}` : "",
+    memory.memory_effective_lines ? `有效话术：${memory.memory_effective_lines}` : "",
+    memory.memory_risks ? `风险提醒：${memory.memory_risks}` : "",
+    memory.memory_next_probe ? `下次观察：${memory.memory_next_probe}` : "",
+  ].filter(Boolean).join("\n");
+}
+
+function normalizeBoss(boss) {
+  return {
+    ...boss,
+    ...normalizeBossMemory(boss || {}),
+  };
 }
 
 function generateAiOutput(kind, payload) {
@@ -375,6 +419,11 @@ function normalizeProfileUpdate(profileUpdate) {
       disliked_style: profileUpdate.disliked_style || "",
       emotion_pattern: profileUpdate.emotion_pattern || "",
       notes: profileUpdate.notes || "",
+      memory_direction: profileUpdate.memory_direction || "",
+      memory_openers: profileUpdate.memory_openers || "",
+      memory_effective_lines: profileUpdate.memory_effective_lines || "",
+      memory_risks: profileUpdate.memory_risks || "",
+      memory_next_probe: profileUpdate.memory_next_probe || "",
     };
   }
   return {
@@ -382,6 +431,11 @@ function normalizeProfileUpdate(profileUpdate) {
     disliked_style: "",
     emotion_pattern: "",
     notes: String(profileUpdate || ""),
+    memory_direction: "",
+    memory_openers: "",
+    memory_effective_lines: "",
+    memory_risks: "",
+    memory_next_probe: "",
   };
 }
 
@@ -589,6 +643,14 @@ function renderBossDetail(bossId) {
             ${detailLine("情绪模式", boss.emotion_pattern)}
             ${detailLine("雷点 / 备注", boss.notes)}
           </div>
+          <div class="divider"></div>
+          <div class="grid">
+            ${detailLine("沟通方向记忆", boss.memory_direction)}
+            ${detailLine("可复用开场", boss.memory_openers)}
+            ${detailLine("有效话术", boss.memory_effective_lines)}
+            ${detailLine("风险提醒", boss.memory_risks)}
+            ${detailLine("下次观察点", boss.memory_next_probe)}
+          </div>
           <div class="button-row" style="margin-top: 16px;">
             <button class="primary-button compact" type="button" data-route="bosses/edit/${boss.id}">编辑档案</button>
             <button class="secondary-button compact" type="button" data-route="prep/${boss.id}">开始本单</button>
@@ -635,6 +697,11 @@ function renderBossForm(mode, bossId = "") {
           favorite_topics: "",
           avoid_topics: "",
           emotion_pattern: "",
+          memory_direction: "",
+          memory_openers: "",
+          memory_effective_lines: "",
+          memory_risks: "",
+          memory_next_probe: "",
           repurchase_level: "中",
           last_order_at: today(),
           notes: "",
@@ -668,6 +735,11 @@ function renderBossForm(mode, bossId = "") {
           ${textareaField("不喜欢的话题", "avoid_topics", boss.avoid_topics)}
           ${textareaField("情绪模式", "emotion_pattern", boss.emotion_pattern)}
           ${textareaField("雷点 / 备注", "notes", boss.notes)}
+          ${textareaField("沟通方向记忆", "memory_direction", boss.memory_direction)}
+          ${textareaField("可复用开场", "memory_openers", boss.memory_openers)}
+          ${textareaField("有效话术", "memory_effective_lines", boss.memory_effective_lines)}
+          ${textareaField("风险提醒", "memory_risks", boss.memory_risks)}
+          ${textareaField("下次观察点", "memory_next_probe", boss.memory_next_probe)}
         </div>
         <p class="hint" style="margin-top: 12px;">避免记录真实姓名、联系方式、收入、住址、感情经历等敏感隐私。</p>
         <div class="button-row" style="margin-top: 16px;">
@@ -1068,6 +1140,7 @@ function saveReview(payload, output) {
     boss.id === payload.boss_id
       ? {
           ...boss,
+          ...mergeBossMemorySuggestion(boss, output.profileUpdate || {}),
           last_order_at: today(),
           repurchase_level: output.repurchase,
           emotion_pattern: `${boss.emotion_pattern || ""} ${payload.boss_emotion}；${payload.result}`.trim(),
@@ -1103,6 +1176,17 @@ function mergeBossProfileSuggestion(boss, suggestion) {
     disliked_style: appendUniqueLine(boss.disliked_style, suggestion.disliked_style || ""),
     emotion_pattern: appendUniqueLine(boss.emotion_pattern, suggestion.emotion_pattern || ""),
     notes: appendUniqueLine(boss.notes, suggestion.notes || ""),
+    ...mergeBossMemorySuggestion(boss, suggestion),
+  };
+}
+
+function mergeBossMemorySuggestion(boss, suggestion = {}) {
+  return {
+    memory_direction: appendUniqueLine(boss.memory_direction, suggestion.memory_direction || ""),
+    memory_openers: appendUniqueLine(boss.memory_openers, suggestion.memory_openers || ""),
+    memory_effective_lines: appendUniqueLine(boss.memory_effective_lines, suggestion.memory_effective_lines || ""),
+    memory_risks: appendUniqueLine(boss.memory_risks, suggestion.memory_risks || ""),
+    memory_next_probe: appendUniqueLine(boss.memory_next_probe, suggestion.memory_next_probe || ""),
   };
 }
 
@@ -1335,6 +1419,7 @@ function normalizeImportedState(input) {
   if (!next.persona || typeof next.persona !== "object") {
     throw new Error("persona 格式错误");
   }
+  next.bosses = next.bosses.map(normalizeBoss);
   return next;
 }
 
@@ -1458,9 +1543,11 @@ function generatePrep(payload) {
   const opening = makeOpening(boss, payload.game, style);
   const typeText = splitList(boss.customer_type).join("、") || "未记录类型";
   const favoriteTopic = firstValue(boss.favorite_topics, "上次比较顺的那一把");
+  const memoryText = bossMemoryText(boss);
   return {
     serviceStrategy: lines([
       `${name}偏${typeText}，本单目标是“${payload.goal || "轻松体验"}”，不要一上来把聊天拉满，先把游戏状态稳住。`,
+      memoryText ? `老板记忆：${memoryText}` : "",
       `开局前 5 分钟先观察两件事：他接话快不快、输一波后还愿不愿意说话。接话慢就多报信息，接话快再顺着${favoriteTopic}聊。`,
       `聊天密度控制在“有回应再多接一句”，不要连续问问题；如果他沉默，先用游戏信息填空，不要追问原因。`,
       `如果局势顺，夸具体行为，比如“这波位置选得挺舒服”；如果逆风，少复盘失误，先给下一波能做的小目标。`,
@@ -1472,11 +1559,13 @@ function generatePrep(payload) {
       `问最近常玩的英雄、位置或枪法手感，只问一个点，不连环追问`,
       payload.goal?.includes("上分") ? "聊今天先保分还是试着主动找节奏" : "聊今天想认真打两把还是先热手快乐局",
       boss.emotion_pattern ? `留意情绪模式：${boss.emotion_pattern}` : "留意第一把输了之后老板还接不接话",
+      boss.memory_next_probe ? `本次重点观察：${boss.memory_next_probe}` : "",
       state.persona.can_joke?.includes("可以") ? "如果气氛顺，可以轻轻接梗，但别把话题抢走" : "保持安静陪伴，把重点放在游戏信息",
-    ],
+    ].filter(Boolean),
     warning: lines([
       boss.notes ? `档案备注：${boss.notes}` : "",
       boss.disliked_style ? `雷点：${boss.disliked_style}` : "不要一开始太密集聊天，先观察老板状态。",
+      boss.memory_risks ? `记忆风险：${boss.memory_risks}` : "",
       boss.avoid_topics ? `避开话题：${boss.avoid_topics}` : "",
       `如果${name}回复变短、只回“嗯/行”、开始频繁叹气，就把闲聊降下来，改成报点、补信息、给下一波小目标。`,
     ]),
@@ -1497,12 +1586,14 @@ function generateAssist(payload) {
   const angry = `${payload.situation} ${payload.emotion}`.includes("烦") || `${payload.situation} ${payload.emotion}`.includes("暴躁") || `${payload.situation} ${payload.emotion}`.includes("输");
   const fun = `${payload.situation} ${payload.emotion}`.includes("整活") || payload.humor === "是";
   const gameState = payload.game_state || "当前局势有点乱";
+  const memoryText = bossMemoryText(boss);
 
   const judgment = quiet
     ? lines([
         `${name}现在不像是不想理人，更像是输局后在收情绪或想专注打下一把。`,
         "这个阶段越问“怎么了”越容易让他有压力，先把陪伴感放在游戏信息和稳定节奏上。",
         boss.emotion_pattern ? `档案里也记录过：${boss.emotion_pattern}` : "",
+        memoryText ? `记忆参考：${memoryText}` : "",
       ])
     : fun
       ? lines([
@@ -1516,6 +1607,7 @@ function generateAssist(payload) {
 
   const strategy = angry
     ? lines([
+        boss.memory_direction ? `先按记忆方向走：${boss.memory_direction}` : "",
         `先接住“这把确实乱”，不要评价${name}刚才的操作。`,
         `下一句话给具体安排：${gameState}，先帮他看信息、报点或提醒技能。`,
         "如果他继续沉默，就 2-3 分钟只报关键游戏信息，等他主动接话再聊。",
@@ -1523,18 +1615,20 @@ function generateAssist(payload) {
       ])
     : fun
       ? lines([
+          boss.memory_direction ? `先按记忆方向走：${boss.memory_direction}` : "",
           "先接梗，不急着纠正打法。",
           "把输赢压力往后放，但关键团前还是提醒一句重点信息。",
           "如果他笑了或继续抛梗，可以多接一句；如果没回应，就收回来认真打。",
         ])
       : lines([
+          boss.memory_direction ? `先按记忆方向走：${boss.memory_direction}` : "",
           "先短句回应当前局势。",
           "第二句给下一波行动，不超过 15 秒。",
           "观察他是否接话：接话就轻聊，不接就专注报信息。",
         ]);
 
   const reply = payload.shorter
-    ? "没事，这两把节奏确实乱。下一把我帮你多看信息，咱们先把开局稳住。"
+    ? (splitList(boss.memory_effective_lines)[0] || "没事，这两把节奏确实乱。下一把我帮你多看信息，咱们先把开局稳住。")
     : fun
       ? lines([
           "懂了，今天主打快乐局。赢了血赚，输了也得整出点节目效果。",
@@ -1544,6 +1638,7 @@ function generateAssist(payload) {
           "这两把节奏确实有点乱，先别急着怪自己。我下一把多帮你看信息，咱们把开局稳住。",
           "刚才那波先过去，下一局我们先打简单一点：少冒险，先拿信息，再找机会。",
           "你要是不想说话也没事，我先多报点，等手感回来咱再慢慢聊。",
+          boss.memory_effective_lines ? `之前有效的说法：${boss.memory_effective_lines}` : "",
         ]);
 
   return {
@@ -1569,7 +1664,10 @@ function generateAssist(payload) {
       "这队友真没救。（短期爽，后面更容易上头）",
       "要不别打了吧。（会显得你先泄气）",
     ],
-    note: boss.disliked_style ? `结合老板雷点：${boss.disliked_style}。这轮先避开这些表达，等他主动开口再延展话题。` : "",
+    note: lines([
+      boss.disliked_style ? `结合老板雷点：${boss.disliked_style}。这轮先避开这些表达，等他主动开口再延展话题。` : "",
+      boss.memory_next_probe ? `本次顺手观察：${boss.memory_next_probe}` : "",
+    ]),
   };
 }
 
@@ -1586,12 +1684,22 @@ function generateReview(payload) {
         disliked_style: "不适合追问沉默原因，不适合评价刚才操作。",
         emotion_pattern: "输局或节奏乱时可能沉默，需要短句稳定情绪。",
         notes: "下次开局前准备低压力开场，避免强行热场。",
+        memory_direction: "逆风或沉默时先降聊天密度，用报点和短句陪伴稳住节奏。",
+        memory_openers: "老板今天先轻松热两把，不急着上压力。\n你要是想安静点也没事，我多帮你看信息。",
+        memory_effective_lines: "你要是不想说话也没事，我先多报点。\n刚才那波先过去，下一局我们先打简单一点。",
+        memory_risks: "不要追问沉默原因；不要评价刚才操作；不要马上开玩笑。",
+        memory_next_probe: "下次观察第一把逆风后是否还接话，决定聊天密度。",
       }
     : {
         preferred_style: "对自然轻松的互动接受度较好，可以从上次游戏体验切入。",
         disliked_style: complaint ? "出现不满时先承认体验问题，不要辩解或催单。" : "",
         emotion_pattern: `${payload.boss_emotion || "情绪稳定"}时互动较顺，可以适度延续话题。`,
         notes: payload.important_notes ? `本次重要信息：${payload.important_notes}` : "下次继续记录老板喜欢的英雄、打法和聊天节奏。",
+        memory_direction: "从上次体验自然切入，先轻松热手，再根据接话速度调整聊天。",
+        memory_openers: makeOpening(boss, payload.game, state.persona.style),
+        memory_effective_lines: payload.good_points || "自然接话、不过度追问，比强行热场更稳。",
+        memory_risks: complaint ? "有不满时先承认体验问题，不要辩解或催单。" : boss.memory_risks || "",
+        memory_next_probe: payload.improvements || "继续观察老板更喜欢游戏信息、轻松聊天还是安静陪伴。",
       };
 
   return {

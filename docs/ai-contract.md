@@ -92,6 +92,7 @@ OPENAI_MODEL_REVIEW=deepseek-reasoner
 - 少用“首先、其次、综上、情绪价值、破冰、建立连接、建议你可以”等模板词
 - 字符串字段可以用换行组织成多条短句，但不要输出 Markdown 列表
 - 开单和复盘要给 2-3 条可直接复制的话术，实时辅助至少给稳妥、温柔、活泼、技术四种表达
+- 如果 `boss_profile` 有老板记忆字段，应优先参考记忆，而不是每次重新泛化判断
 
 ## 开单准备 `prep`
 
@@ -152,7 +153,12 @@ OPENAI_MODEL_REVIEW=deepseek-reasoner
     "preferred_style": "建议写入老板偏好的内容",
     "disliked_style": "建议写入老板雷点的内容",
     "emotion_pattern": "建议写入情绪模式的内容",
-    "notes": "建议写入备注的内容"
+    "notes": "建议写入备注的内容",
+    "memory_direction": "后续沟通方向",
+    "memory_openers": "可复用开场话术",
+    "memory_effective_lines": "已经验证有效的话术",
+    "memory_risks": "下次应避开的风险",
+    "memory_next_probe": "下次需要观察的问题"
   },
   "nextOpening": "下次开场话术",
   "nextContact": "下次联系建议",

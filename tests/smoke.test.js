@@ -107,7 +107,7 @@ function loadAppContext() {
   vm.createContext(context);
   vm.runInContext(
     `${code}
-globalThis.__testApi = { state, aiKinds, aiOutputSchemas, generateAiOutput, generateAiOutputAsync, normalizeAiOutput, generatePrep, generateAssist, generateReview, renderOutput, normalizeImportedState, mergeBossProfileSuggestion, filterOrders };`,
+globalThis.__testApi = { state, aiKinds, aiOutputSchemas, generateAiOutput, generateAiOutputAsync, normalizeAiOutput, generatePrep, generateAssist, generateReview, renderOutput, normalizeImportedState, mergeBossProfileSuggestion, filterOrders, bossMemoryText, normalizeBoss };`,
     context,
     { filename: appPath },
   );
@@ -235,6 +235,8 @@ test("deployment files expose start script and health check", () => {
   assert.match(server, /减少 AI 味/);
   assert.match(server, /不要使用“首先、其次/);
   assert.match(server, /场景细化要求/);
+  assert.match(server, /memory_direction/);
+  assert.match(server, /memory_openers/);
   assert.match(server, /OPENAI_API_KEY/);
   assert.match(server, /process\.env\.PORT/);
   assert.match(deployDoc, /npm start/);
@@ -333,6 +335,11 @@ test("local data model includes sample persona, bosses, orders, and assists", ()
   const app = read(appPath);
   assert.match(app, /persona:\s*{/);
   assert.match(app, /bosses:\s*\[/);
+  assert.match(app, /memory_direction/);
+  assert.match(app, /memory_openers/);
+  assert.match(app, /memory_effective_lines/);
+  assert.match(app, /memory_risks/);
+  assert.match(app, /memory_next_probe/);
   assert.match(app, /orders:\s*\[/);
   assert.match(app, /assists:\s*\[/);
   assert.match(app, /favorites:\s*\[/);
@@ -357,6 +364,7 @@ test("AI simulators return the fields expected by the renderer", () => {
   assert.ok(prep.topics.length >= 4);
   assert.ok(prep.avoid.length >= 4);
   assert.ok(Array.isArray(prep.avoid));
+  assert.match(prep.serviceStrategy, /老板记忆/);
 
   const assist = context.generateAssist({
     boss_id: bossId,
@@ -371,6 +379,7 @@ test("AI simulators return the fields expected by the renderer", () => {
   assert.ok(assist.currentStrategy.split("\n").length >= 3);
   assert.ok(assist.avoid.length >= 4);
   assert.ok(Array.isArray(assist.avoid));
+  assert.match(`${assist.judgment}\n${assist.currentStrategy}\n${assist.note}`, /记忆|观察/);
 
   const review = context.generateReview({
     boss_id: bossId,
@@ -386,6 +395,8 @@ test("AI simulators return the fields expected by the renderer", () => {
   assert.equal(typeof review.summary, "string");
   assert.equal(typeof review.profileUpdate, "object");
   assert.equal(typeof review.profileUpdate.preferred_style, "string");
+  assert.equal(typeof review.profileUpdate.memory_direction, "string");
+  assert.equal(typeof review.profileUpdate.memory_openers, "string");
   assert.equal(typeof review.nextOpening, "string");
   assert.equal(typeof review.nextContact, "string");
   assert.ok(review.summary.split("\n").length >= 3);
@@ -508,6 +519,14 @@ test("imported state normalization keeps required collections", () => {
 
   assert.equal(normalized.persona.nickname, "测试");
   assert.ok(Array.isArray(normalized.favorites));
+  const migrated = context.normalizeImportedState({
+    persona: { nickname: "测试" },
+    bosses: [{ id: "boss-old", nickname: "旧老板", games: "瓦罗兰特" }],
+    orders: [],
+    assists: [],
+    favorites: [],
+  });
+  assert.equal(migrated.bosses[0].memory_direction, "");
   assert.throws(() => context.normalizeImportedState({ bosses: {} }), /bosses 格式错误/);
 });
 
@@ -518,12 +537,22 @@ test("profile suggestions merge into structured boss fields without duplicates",
     disliked_style: "不要催单",
     emotion_pattern: "输局后沉默",
     notes: "老客户",
+    memory_direction: "先低压陪打",
+    memory_openers: "",
+    memory_effective_lines: "",
+    memory_risks: "",
+    memory_next_probe: "",
   };
   const merged = context.mergeBossProfileSuggestion(boss, {
     preferred_style: "轻松自然",
     disliked_style: "不适合追问沉默原因",
     emotion_pattern: "赢局后会主动聊天",
     notes: "下次准备低压力开场",
+    memory_direction: "先低压陪打",
+    memory_openers: "老板今天先轻松热两把。",
+    memory_effective_lines: "你要是不想说话也没事，我先多报点。",
+    memory_risks: "不要追问沉默原因",
+    memory_next_probe: "观察第一把输了之后是否还接话",
   });
 
   assert.equal(merged.preferred_style, "轻松自然");
@@ -531,6 +560,12 @@ test("profile suggestions merge into structured boss fields without duplicates",
   assert.match(merged.disliked_style, /不适合追问沉默原因/);
   assert.match(merged.emotion_pattern, /赢局后会主动聊天/);
   assert.match(merged.notes, /下次准备低压力开场/);
+  assert.equal(merged.memory_direction, "先低压陪打");
+  assert.match(merged.memory_openers, /轻松热两把/);
+  assert.match(merged.memory_effective_lines, /多报点/);
+  assert.match(merged.memory_risks, /不要追问/);
+  assert.match(merged.memory_next_probe, /是否还接话/);
+  assert.match(context.bossMemoryText(merged), /沟通方向/);
 });
 
 test("order filters return expected subsets", () => {

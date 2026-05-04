@@ -897,7 +897,7 @@ function buildSystemPrompt(kind) {
     ],
     review: [
       "summary 写 3-5 句：本单节奏、老板情绪变化、有效做法、下次要记住的点。",
-      "profileUpdate 四个字段都尽量写具体，可直接合并进老板档案。",
+      "profileUpdate 字段要写具体，可直接合并进老板档案；除 preferred_style、disliked_style、emotion_pattern、notes 外，还要尽量包含 memory_direction、memory_openers、memory_effective_lines、memory_risks、memory_next_probe。",
       "nextOpening 写 2-3 条下次可直接发的开场话术，用换行分隔。",
       "nextContact 写联系时间、第一句话、没回复时怎么处理，不要催单。",
       "performance 写做得好的地方和下次改进点，避免空泛鼓励。",
@@ -911,6 +911,7 @@ function buildSystemPrompt(kind) {
     "输出必须符合当前场景字段，字段名使用英文。",
     "内容要比短模板更具体，但仍然方便复制；字符串字段可以用换行组织成几条短句。",
     "必须结合输入里的老板档案、当前局势、陪玩人设和本次目标，不要泛泛而谈。",
+    "如果 boss_profile 里有 memory_direction、memory_openers、memory_effective_lines、memory_risks、memory_next_probe，必须优先参考这些老板记忆。",
     "话术要像真人陪玩临场能说出口：轻一点、自然一点、有边界，不要客服腔。",
     "减少 AI 味：不要使用“首先、其次、综上、赋能、情绪价值、建立连接、破冰、建议你可以、高质量陪伴”等套话。",
     "不要每句都用“可以”开头；少讲道理，多给具体可发的句子和判断条件。",
@@ -948,6 +949,11 @@ function normalizeProviderOutput(kind, output) {
       disliked_style: normalized.profileUpdate?.disliked_style || "",
       emotion_pattern: normalized.profileUpdate?.emotion_pattern || "",
       notes: normalized.profileUpdate?.notes || "",
+      memory_direction: normalized.profileUpdate?.memory_direction || "",
+      memory_openers: normalized.profileUpdate?.memory_openers || "",
+      memory_effective_lines: normalized.profileUpdate?.memory_effective_lines || "",
+      memory_risks: normalized.profileUpdate?.memory_risks || "",
+      memory_next_probe: normalized.profileUpdate?.memory_next_probe || "",
     };
   }
   return normalized;
