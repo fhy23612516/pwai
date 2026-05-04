@@ -29,6 +29,7 @@ OPENAI_MODEL=中转站支持的模型名
 AI_API_MODE=chat
 AI_TIMEOUT_MS=30000
 AI_HTTP_CLIENT=fetch
+OPENAI_RESPONSE_FORMAT=json_object
 ```
 
 你的 `responses` 中转站配置示例：
@@ -42,6 +43,7 @@ OPENAI_REASONING_EFFORT=xhigh
 OPENAI_DISABLE_RESPONSE_STORAGE=true
 AI_TIMEOUT_MS=30000
 AI_HTTP_CLIENT=curl
+OPENAI_RESPONSE_FORMAT=text
 ```
 
 `OPENAI_BASE_URL` 可以写 `https://sub.zlove.tech` 或 `https://sub.zlove.tech/v1`，服务端会自动补齐 `/v1`。
@@ -51,6 +53,14 @@ AI_HTTP_CLIENT=curl
 ```text
 AI_HTTP_CLIENT=curl
 ```
+
+如果中转站 responses 接口不支持 `text.format=json_object`，设置：
+
+```text
+OPENAI_RESPONSE_FORMAT=text
+```
+
+此时服务端会通过 prompt 要求模型输出 JSON，并继续解析模型返回的 JSON 文本。
 
 ## 通用安全规则
 

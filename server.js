@@ -212,12 +212,15 @@ async function callResponsesApi(kind, requestPayload) {
       { role: "system", content: buildSystemPrompt(kind) },
       { role: "user", content: JSON.stringify(requestPayload) },
     ],
-    text: {
+  };
+
+  if ((process.env.OPENAI_RESPONSE_FORMAT || "json_object").toLowerCase() === "json_object") {
+    body.text = {
       format: {
         type: "json_object",
       },
-    },
-  };
+    };
+  }
 
   if (process.env.OPENAI_REASONING_EFFORT) {
     body.reasoning = { effort: process.env.OPENAI_REASONING_EFFORT };

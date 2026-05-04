@@ -211,6 +211,8 @@ test("deployment files expose start script and health check", () => {
   assert.match(server, /AI_HTTP_CLIENT/);
   assert.match(server, /execFile\("curl"/);
   assert.match(server, /--data-binary/);
+  assert.match(server, /OPENAI_RESPONSE_FORMAT/);
+  assert.match(server, /json_object/);
   assert.match(server, /OPENAI_API_KEY/);
   assert.match(server, /process\.env\.PORT/);
   assert.match(deployDoc, /npm start/);
@@ -236,6 +238,7 @@ test("versioned server config templates target the deployed service", () => {
   assert.match(env, /AI_HTTP_CLIENT=fetch/);
   assert.match(env, /OPENAI_REASONING_EFFORT=/);
   assert.match(env, /OPENAI_DISABLE_RESPONSE_STORAGE=true/);
+  assert.match(env, /OPENAI_RESPONSE_FORMAT=json_object/);
   assert.match(env, /MAX_BODY_BYTES=65536/);
   assert.match(service, /WorkingDirectory=\/opt\/pwai/);
   assert.match(service, /EnvironmentFile=-\/etc\/pwai\/pwai\.env/);

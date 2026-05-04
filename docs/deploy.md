@@ -92,6 +92,7 @@ AI_TIMEOUT_MS=30000
 AI_HTTP_CLIENT=fetch
 OPENAI_REASONING_EFFORT=
 OPENAI_DISABLE_RESPONSE_STORAGE=true
+OPENAI_RESPONSE_FORMAT=json_object
 ```
 
 不要把真实密钥提交到 GitHub。
@@ -131,6 +132,7 @@ OPENAI_REASONING_EFFORT=xhigh
 OPENAI_DISABLE_RESPONSE_STORAGE=true
 AI_TIMEOUT_MS=30000
 AI_HTTP_CLIENT=curl
+OPENAI_RESPONSE_FORMAT=text
 ```
 
 如果 Node `fetch` 访问中转站超时，但系统 `curl` 可以访问，使用：
@@ -140,6 +142,12 @@ AI_HTTP_CLIENT=curl
 ```
 
 这会让服务端用系统 `curl` 请求中转站，绕开 Node/undici 与部分 Cloudflare 中转站的连接兼容问题。
+
+如果 responses 接口不支持 `text.format=json_object`，使用：
+
+```text
+OPENAI_RESPONSE_FORMAT=text
+```
 
 ## 数据备份
 

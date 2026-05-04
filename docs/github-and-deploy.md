@@ -382,6 +382,7 @@ sudo systemctl restart pwai
 - 中转站 API 在 `/etc/pwai/pwai.env` 配置 `OPENAI_BASE_URL`、`OPENAI_MODEL`、`AI_API_MODE=chat`
 - 如果中转站使用 Responses 协议，可配置 `AI_API_MODE=responses`、`OPENAI_REASONING_EFFORT=xhigh`、`OPENAI_DISABLE_RESPONSE_STORAGE=true`
 - 如果 Node `fetch` 连中转站超时但系统 `curl` 可用，配置 `AI_HTTP_CLIENT=curl`
+- 如果中转站不支持 `text.format=json_object`，配置 `OPENAI_RESPONSE_FORMAT=text`
 - 当前数据存在浏览器 `localStorage`，换浏览器会看不到旧数据
 - 设置页可以导出 / 导入 JSON 数据
 - 真实 AI 接入时建议增加服务端 `/api/ai`，由服务器读取环境变量里的密钥
