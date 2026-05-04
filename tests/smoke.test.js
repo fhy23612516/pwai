@@ -9,6 +9,7 @@ const indexPath = path.join(root, "index.html");
 const stylesPath = path.join(root, "styles.css");
 const aiContractPath = path.join(root, "docs", "ai-contract.md");
 const deployDocPath = path.join(root, "docs", "deploy.md");
+const githubDeployDocPath = path.join(root, "docs", "github-and-deploy.md");
 const packagePath = path.join(root, "package.json");
 const serverPath = path.join(root, "server.js");
 
@@ -174,6 +175,7 @@ test("deployment files expose start script and health check", () => {
   const packageJson = JSON.parse(read(packagePath));
   const server = read(serverPath);
   const deployDoc = read(deployDocPath);
+  const githubDeployDoc = read(githubDeployDocPath);
 
   assert.equal(packageJson.scripts.start, "node server.js");
   assert.equal(packageJson.scripts.test, "node tests/smoke.test.js");
@@ -181,6 +183,9 @@ test("deployment files expose start script and health check", () => {
   assert.match(server, /process\.env\.PORT/);
   assert.match(deployDoc, /npm start/);
   assert.match(deployDoc, /\/healthz/);
+  for (const pattern of [/git remote add origin/, /git push/, /PM2/, /systemd/, /Nginx/, /4188/, /git revert/]) {
+    assert.match(githubDeployDoc, pattern);
+  }
 });
 
 test("AI provider settings are part of local state", () => {

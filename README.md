@@ -12,6 +12,12 @@
 npm start
 ```
 
+如果 Windows PowerShell 拦截 `npm.ps1`，使用：
+
+```powershell
+npm.cmd start
+```
+
 默认监听 `0.0.0.0:4173`。可通过环境变量修改：
 
 ```powershell
@@ -42,6 +48,8 @@ curl http://127.0.0.1:4173/healthz
 - 内置 Node 静态服务器和 `/healthz` 健康检查
 
 AI 接口契约见 [docs/ai-contract.md](./docs/ai-contract.md)。
+
+GitHub 推送和服务器部署流程见 [docs/github-and-deploy.md](./docs/github-and-deploy.md)。
 
 ## 测试方式
 
