@@ -54,6 +54,24 @@ const emotionOptions = [
   "输游戏后烦躁",
 ];
 
+const aiKinds = {
+  prep: "prep",
+  assist: "assist",
+  review: "review",
+};
+
+const aiOutputSchemas = {
+  prep: ["serviceStrategy", "opening", "topics", "warning", "avoid"],
+  assist: ["judgment", "currentStrategy", "reply", "gentle", "lively", "technical", "avoid"],
+  review: ["summary", "profileUpdate", "nextOpening", "nextContact", "repurchase", "performance"],
+};
+
+const localAiProvider = {
+  prep: generatePrep,
+  assist: generateAssist,
+  review: generateReview,
+};
+
 const defaultState = {
   persona: {
     nickname: "小鹿",
@@ -260,6 +278,59 @@ function bossSelect(name = "boss_id", selected = "") {
         .join("")}
     </select>
   `;
+}
+
+function generateAiOutput(kind, payload) {
+  const provider = localAiProvider[kind];
+  if (!provider) {
+    throw new Error(`未知 AI 场景：${kind}`);
+  }
+  return normalizeAiOutput(kind, provider(payload));
+}
+
+function normalizeAiOutput(kind, output) {
+  const schema = aiOutputSchemas[kind];
+  if (!schema) {
+    throw new Error(`未知 AI 输出结构：${kind}`);
+  }
+  const normalized = { ...output, kind };
+  for (const field of schema) {
+    if (!(field in normalized)) {
+      normalized[field] = Array.isArray(defaultAiFieldValue(field)) ? [] : "";
+    }
+  }
+  if (kind === aiKinds.prep) {
+    normalized.topics = splitList(normalized.topics);
+    normalized.avoid = splitList(normalized.avoid);
+  }
+  if (kind === aiKinds.assist) {
+    normalized.avoid = splitList(normalized.avoid);
+  }
+  if (kind === aiKinds.review) {
+    normalized.profileUpdate = normalizeProfileUpdate(normalized.profileUpdate);
+  }
+  return normalized;
+}
+
+function defaultAiFieldValue(field) {
+  return ["topics", "avoid"].includes(field) ? [] : "";
+}
+
+function normalizeProfileUpdate(profileUpdate) {
+  if (profileUpdate && typeof profileUpdate === "object" && !Array.isArray(profileUpdate)) {
+    return {
+      preferred_style: profileUpdate.preferred_style || "",
+      disliked_style: profileUpdate.disliked_style || "",
+      emotion_pattern: profileUpdate.emotion_pattern || "",
+      notes: profileUpdate.notes || "",
+    };
+  }
+  return {
+    preferred_style: "",
+    disliked_style: "",
+    emotion_pattern: "",
+    notes: String(profileUpdate || ""),
+  };
 }
 
 function renderHome() {
@@ -724,7 +795,7 @@ function renderPrep(defaultBossId = "") {
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     const payload = Object.fromEntries(new FormData(form).entries());
-    appView.querySelector("#prep-output").innerHTML = renderOutput(generatePrep(payload));
+    appView.querySelector("#prep-output").innerHTML = renderOutput(generateAiOutput(aiKinds.prep, payload));
     bindCopyButtons();
   });
   appView.querySelector("[data-fill-prep]").addEventListener("click", () => {
@@ -795,7 +866,7 @@ function renderAssist(defaultBossId = "") {
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     const payload = Object.fromEntries(new FormData(form).entries());
-    const output = generateAssist(payload);
+    const output = generateAiOutput(aiKinds.assist, payload);
     state.assists.unshift({
       id: id("assist"),
       boss_id: payload.boss_id,
@@ -811,7 +882,7 @@ function renderAssist(defaultBossId = "") {
   });
   appView.querySelector("[data-shorter]").addEventListener("click", () => {
     const payload = Object.fromEntries(new FormData(form).entries());
-    appView.querySelector("#assist-output").innerHTML = renderOutput(generateAssist({ ...payload, shorter: true }));
+    appView.querySelector("#assist-output").innerHTML = renderOutput(generateAiOutput(aiKinds.assist, { ...payload, shorter: true }));
     bindCopyButtons();
   });
 }
@@ -886,14 +957,14 @@ function renderReview(defaultBossId = "") {
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     const payload = Object.fromEntries(new FormData(form).entries());
-    lastOutput = generateReview(payload);
+    lastOutput = generateAiOutput(aiKinds.review, payload);
     appView.querySelector("#review-output").innerHTML = renderOutput(lastOutput);
     appView.querySelector("[data-apply-profile]").disabled = false;
     bindCopyButtons();
   });
   appView.querySelector("[data-save-review]").addEventListener("click", () => {
     const payload = Object.fromEntries(new FormData(form).entries());
-    const output = lastOutput || generateReview(payload);
+    const output = lastOutput || generateAiOutput(aiKinds.review, payload);
     saveReview(payload, output);
   });
   appView.querySelector("[data-apply-profile]").addEventListener("click", () => {

@@ -96,7 +96,7 @@ function loadAppContext() {
   vm.createContext(context);
   vm.runInContext(
     `${code}
-globalThis.__testApi = { state, generatePrep, generateAssist, generateReview, renderOutput, normalizeImportedState, mergeBossProfileSuggestion, filterOrders };`,
+globalThis.__testApi = { state, aiKinds, aiOutputSchemas, generateAiOutput, normalizeAiOutput, generatePrep, generateAssist, generateReview, renderOutput, normalizeImportedState, mergeBossProfileSuggestion, filterOrders };`,
     context,
     { filename: appPath },
   );
@@ -202,6 +202,63 @@ test("AI simulators return the fields expected by the renderer", () => {
   assert.equal(typeof review.nextOpening, "string");
   assert.equal(typeof review.nextContact, "string");
   assert.match(review.repurchase, /高|中|低/);
+});
+
+test("AI adapter normalizes outputs for all supported scenarios", () => {
+  const context = loadAppContext();
+  const bossId = context.state.bosses[0].id;
+
+  const prep = context.generateAiOutput(context.aiKinds.prep, {
+    boss_id: bossId,
+    game: "瓦罗兰特",
+    goal: "轻松上分",
+    style: "温柔陪伴型",
+  });
+  for (const field of context.aiOutputSchemas.prep) {
+    assert.ok(field in prep, `prep should include ${field}`);
+  }
+  assert.equal(prep.kind, "prep");
+  assert.ok(Array.isArray(prep.topics));
+
+  const assist = context.generateAiOutput(context.aiKinds.assist, {
+    boss_id: bossId,
+    situation: "老板输了两把，现在不怎么说话。",
+    emotion: "沉默",
+  });
+  for (const field of context.aiOutputSchemas.assist) {
+    assert.ok(field in assist, `assist should include ${field}`);
+  }
+  assert.equal(assist.kind, "assist");
+  assert.ok(Array.isArray(assist.avoid));
+
+  const review = context.generateAiOutput(context.aiKinds.review, {
+    boss_id: bossId,
+    game: "瓦罗兰特",
+    result: "体验较好",
+    boss_emotion: "开心",
+    had_silence: "否",
+    renewed: "否",
+    complaint: "否",
+  });
+  for (const field of context.aiOutputSchemas.review) {
+    assert.ok(field in review, `review should include ${field}`);
+  }
+  assert.equal(review.kind, "review");
+  assert.equal(typeof review.profileUpdate, "object");
+});
+
+test("AI adapter fills missing fields with safe defaults", () => {
+  const context = loadAppContext();
+  const normalized = context.normalizeAiOutput(context.aiKinds.prep, {
+    opening: "老板今天还打瓦吗？",
+  });
+
+  assert.equal(normalized.serviceStrategy, "");
+  assert.equal(normalized.opening, "老板今天还打瓦吗？");
+  assert.ok(Array.isArray(normalized.topics));
+  assert.equal(normalized.topics.length, 0);
+  assert.ok(Array.isArray(normalized.avoid));
+  assert.equal(normalized.avoid.length, 0);
 });
 
 test("rendered AI output contains copyable cards", () => {
