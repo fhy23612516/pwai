@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>陪玩副驾 AI</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="主导航">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">AI</div>
+          <div>
+            <h1>陪玩副驾 AI</h1>
+            <p>真人陪玩的工作台</p>
+          </div>
+        </div>
+        <nav class="nav-list" id="app-nav"></nav>
+      </aside>
+
+      <main class="main-panel">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow" id="view-eyebrow">工作台</p>
+            <h2 id="view-title">首页</h2>
+          </div>
+          <button class="ghost-button compact" id="reset-demo" type="button">重置示例</button>
+        </header>
+
+        <section id="app-view" class="view"></section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <template id="empty-state-template">
+      <div class="empty-state">
+        <div class="empty-icon" aria-hidden="true">+</div>
+        <h3></h3>
+        <p></p>
+      </div>
+    </template>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

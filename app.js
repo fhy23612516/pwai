@@ -1,0 +1,1229 @@
+const STORAGE_KEY = "pwai-state-v1";
+
+const navItems = [
+  { id: "home", label: "首页", icon: "H", title: "首页", eyebrow: "工作台" },
+  { id: "bosses", label: "老板", icon: "B", title: "老板列表", eyebrow: "客户档案" },
+  { id: "persona", label: "人设", icon: "P", title: "陪玩人设", eyebrow: "个人风格" },
+  { id: "prep", label: "开单", icon: "S", title: "开单准备", eyebrow: "订单开始前" },
+  { id: "assist", label: "求助", icon: "A", title: "实时辅助", eyebrow: "订单进行中" },
+  { id: "review", label: "复盘", icon: "R", title: "订单复盘", eyebrow: "订单结束后" },
+];
+
+const styleOptions = [
+  "元气搞笑型",
+  "温柔陪伴型",
+  "技术带飞型",
+  "甜妹型",
+  "高冷反差型",
+  "兄弟开黑型",
+  "二次元整活型",
+  "毒舌但有分寸型",
+  "安静陪伴型",
+  "情绪安抚型",
+];
+
+const customerTypes = [
+  "上分型",
+  "娱乐型",
+  "倾诉型",
+  "沉默型",
+  "整活型",
+  "慢热型",
+  "高消费型",
+  "低频型",
+];
+
+const emotionOptions = [
+  "开心",
+  "沉默",
+  "暴躁",
+  "尴尬",
+  "疲惫",
+  "失落",
+  "想倾诉",
+  "想上分",
+  "想整活",
+  "不想说话",
+  "输游戏后烦躁",
+];
+
+const defaultState = {
+  persona: {
+    nickname: "小鹿",
+    style: "温柔陪伴型",
+    main_games: "王者荣耀, 瓦罗兰特",
+    tone: "自然、温柔、轻松，不过度撒娇",
+    avoid_tone: "油腻、夸张、客服感、过度暧昧",
+    can_joke: "可以，轻松有分寸",
+    active_level: "中等主动",
+    notes: "适合慢热型、倾诉型和轻松娱乐型老板",
+  },
+  bosses: [
+    {
+      id: "boss-achen",
+      nickname: "阿辰",
+      remark: "瓦老板",
+      games: "瓦罗兰特",
+      play_time: "晚上 8 点后",
+      customer_type: ["慢热型", "娱乐型"],
+      preferred_style: "轻松自然，不要太吵",
+      disliked_style: "过度撒娇、催单",
+      favorite_topics: "游戏操作、轻松吐槽、上次名场面",
+      avoid_topics: "现实隐私、收入、感情问题",
+      emotion_pattern: "输游戏后容易沉默，赢了之后会主动聊天",
+      repurchase_level: "中高",
+      last_order_at: "2026-05-01",
+      notes: "适合从上次游戏表现切入，不要一开始太热闹。",
+    },
+    {
+      id: "boss-xiaochen",
+      nickname: "小陈",
+      remark: "王者上分",
+      games: "王者荣耀",
+      play_time: "下午或深夜",
+      customer_type: ["上分型"],
+      preferred_style: "技术稳定，少说废话，逆风时给明确思路",
+      disliked_style: "乱开玩笑、声音太吵",
+      favorite_topics: "阵容、节奏、英雄强度",
+      avoid_topics: "评价他的操作、强行闲聊",
+      emotion_pattern: "逆风时容易烦躁，需要明确指挥",
+      repurchase_level: "中",
+      last_order_at: "2026-05-02",
+      notes: "更重视结果和稳定情绪。",
+    },
+    {
+      id: "boss-nanfeng",
+      nickname: "南风",
+      remark: "整活搭子",
+      games: "和平精英",
+      play_time: "周末晚上",
+      customer_type: ["整活型", "娱乐型"],
+      preferred_style: "能接梗，气氛活跃",
+      disliked_style: "太严肃、一直指挥",
+      favorite_topics: "节目效果、名场面、装备玄学",
+      avoid_topics: "严肃复盘、掉分压力",
+      emotion_pattern: "喜欢开玩笑，不喜欢太严肃",
+      repurchase_level: "高",
+      last_order_at: "2026-05-03",
+      notes: "适合快乐局，赢了血赚，输了也能做素材。",
+    },
+  ],
+  orders: [
+    {
+      id: "order-1",
+      boss_id: "boss-achen",
+      game: "瓦罗兰特",
+      duration: "2 小时",
+      result: "整体体验较好",
+      boss_emotion: "前期沉默，后期开心",
+      had_silence: true,
+      renewed: false,
+      important_notes: "老板说最近工作比较累。",
+      review_summary: "老板需要轻松陪伴，不适合强行热场。",
+      next_contact_suggestion: "建议 2-3 天后晚上 8 点左右自然联系。",
+      created_at: "2026-05-04",
+    },
+  ],
+  assists: [],
+};
+
+let state = loadState();
+let currentBossFilter = "全部老板";
+let selectedBossId = null;
+
+const appView = document.querySelector("#app-view");
+const nav = document.querySelector("#app-nav");
+const viewTitle = document.querySelector("#view-title");
+const viewEyebrow = document.querySelector("#view-eyebrow");
+const toast = document.querySelector("#toast");
+
+function loadState() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) return structuredClone(defaultState);
+  try {
+    return { ...structuredClone(defaultState), ...JSON.parse(raw) };
+  } catch {
+    return structuredClone(defaultState);
+  }
+}
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function id(prefix) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function daysSince(dateText) {
+  if (!dateText) return 999;
+  const then = new Date(`${dateText}T00:00:00`);
+  const now = new Date(`${today()}T00:00:00`);
+  return Math.max(0, Math.round((now - then) / 86400000));
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function splitList(value) {
+  if (Array.isArray(value)) return value.filter(Boolean);
+  return String(value ?? "")
+    .split(/[、,，\n]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function toastMessage(message) {
+  toast.textContent = message;
+  toast.classList.add("show");
+  window.clearTimeout(toast.dataset.timer);
+  toast.dataset.timer = window.setTimeout(() => toast.classList.remove("show"), 1800);
+}
+
+function setRoute(route) {
+  window.location.hash = route;
+}
+
+function route() {
+  const value = window.location.hash.replace("#", "");
+  return value || "home";
+}
+
+function renderNav() {
+  nav.innerHTML = navItems
+    .map(
+      (item) => `
+        <button class="nav-item ${route().startsWith(item.id) ? "active" : ""}" type="button" data-route="${item.id}">
+          <span class="nav-icon" aria-hidden="true">${item.icon}</span>
+          <span>${item.label}</span>
+        </button>
+      `,
+    )
+    .join("");
+
+  nav.querySelectorAll("[data-route]").forEach((button) => {
+    button.addEventListener("click", () => setRoute(button.dataset.route));
+  });
+}
+
+function setHeader(idValue) {
+  const base = idValue.split("/")[0];
+  const item = navItems.find((navItem) => navItem.id === base) || navItems[0];
+  viewTitle.textContent = item.title;
+  viewEyebrow.textContent = item.eyebrow;
+}
+
+function emptyState(title, description) {
+  return `
+    <div class="empty-state">
+      <div class="empty-icon" aria-hidden="true">+</div>
+      <h3>${escapeHtml(title)}</h3>
+      <p>${escapeHtml(description)}</p>
+    </div>
+  `;
+}
+
+function repurchaseClass(level) {
+  if (String(level).includes("高")) return "high";
+  if (String(level).includes("中")) return "medium";
+  return "warn";
+}
+
+function getBoss(bossId) {
+  return state.bosses.find((boss) => boss.id === bossId);
+}
+
+function bossSelect(name = "boss_id", selected = "") {
+  return `
+    <select name="${name}" required>
+      ${state.bosses
+        .map((boss) => `<option value="${boss.id}" ${boss.id === selected ? "selected" : ""}>${escapeHtml(boss.nickname)} · ${escapeHtml(boss.games)}</option>`)
+        .join("")}
+    </select>
+  `;
+}
+
+function renderHome() {
+  const reminders = getReminders();
+  const highRepurchase = state.bosses.filter((boss) => String(boss.repurchase_level).includes("高"));
+  const silenceOrders = state.orders.filter((order) => order.had_silence);
+  const recentOrders = [...state.orders].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 3);
+
+  appView.innerHTML = `
+    <div class="grid auto">
+      <article class="metric-card">
+        <span>今日待联系老板</span>
+        <strong>${reminders.length}</strong>
+        <p>${reminders[0] ? `优先联系 ${escapeHtml(reminders[0].nickname)}，上次体验${escapeHtml(reminders[0].experience)}。` : "暂无必须联系的老板。"}</p>
+      </article>
+      <article class="metric-card">
+        <span>高复购老板</span>
+        <strong>${highRepurchase.length}</strong>
+        <p>保持自然维护，避免催单和过度打扰。</p>
+      </article>
+      <article class="metric-card">
+        <span>最近冷场订单</span>
+        <strong>${silenceOrders.length}</strong>
+        <p>复盘沉默节点，提前准备低压力开场。</p>
+      </article>
+    </div>
+
+    <div class="grid two" style="margin-top: 16px;">
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">快捷入口</h3>
+            <p class="card-subtitle">常用动作放在第一屏，适合手机端快速操作。</p>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="quick-grid">
+            <button class="primary-button" type="button" data-route="bosses/new">新建老板</button>
+            <button class="secondary-button" type="button" data-route="prep">开单准备</button>
+            <button class="secondary-button" type="button" data-route="assist">实时求助</button>
+            <button class="secondary-button" type="button" data-route="review">写订单复盘</button>
+            <button class="ghost-button" type="button" data-route="persona">陪玩人设</button>
+            <button class="ghost-button" type="button" data-route="bosses">老板列表</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">AI 今日建议</h3>
+            <p class="card-subtitle">根据订单和老板档案生成的轻量提醒。</p>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="ai-output">
+            ${outputCard("维护重点", reminders.length ? `优先联系 ${reminders.slice(0, 3).map((item) => item.nickname).join("、")}。话术从上次体验切入，不直接催单。` : "今天可以整理最近订单，把老板雷点和偏好补全。")}
+            ${outputCard("服务提醒", "遇到沉默或输局烦躁时，先降低聊天压力，再给明确陪伴感。不要追问隐私，不评价老板操作。")}
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="grid two" style="margin-top: 16px;">
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">今日待联系</h3>
+            <p class="card-subtitle">基于上次订单时间和复购概率的本地提醒。</p>
+          </div>
+          <button class="ghost-button compact" type="button" data-route="reminders">查看全部</button>
+        </div>
+        <div class="card-body">
+          ${reminders.length ? `<div class="list">${reminders.slice(0, 3).map(renderReminderCard).join("")}</div>` : emptyState("暂无联系提醒", "有订单记录后会自动生成自然维护建议。")}
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">最近订单</h3>
+            <p class="card-subtitle">用于快速复盘和更新老板画像。</p>
+          </div>
+        </div>
+        <div class="card-body">
+          ${recentOrders.length ? `<div class="list">${recentOrders.map(renderOrderCard).join("")}</div>` : emptyState("暂无订单", "完成订单复盘后会出现在这里。")}
+        </div>
+      </section>
+    </div>
+  `;
+
+  bindRouteButtons();
+  bindCopyButtons();
+}
+
+function renderBosses() {
+  const filters = ["全部老板", "高复购", "最近下单", "久未联系", "情绪陪伴型", "技术上分型", "娱乐整活型"];
+  const bosses = filterBosses(currentBossFilter);
+
+  appView.innerHTML = `
+    <div class="grid" style="gap: 14px;">
+      <section class="card pad">
+        <div class="boss-card-head">
+          <div>
+            <h3 class="card-title">老板档案</h3>
+            <p class="card-subtitle">记录偏好、雷点、情绪模式和历史订单。</p>
+          </div>
+          <button class="primary-button compact" type="button" data-route="bosses/new">新建老板</button>
+        </div>
+        <div class="filter-row" style="margin-top: 16px;">
+          ${filters.map((filter) => `<button class="filter-button ${filter === currentBossFilter ? "active" : ""}" type="button" data-filter="${filter}">${filter}</button>`).join("")}
+        </div>
+      </section>
+
+      ${bosses.length ? `<div class="grid auto">${bosses.map(renderBossCard).join("")}</div>` : emptyState("没有符合条件的老板", "切换筛选条件，或先新建一个老板档案。")}
+    </div>
+  `;
+
+  bindRouteButtons();
+  appView.querySelectorAll("[data-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      currentBossFilter = button.dataset.filter;
+      render();
+    });
+  });
+}
+
+function filterBosses(filter) {
+  const sorted = [...state.bosses].sort((a, b) => b.last_order_at.localeCompare(a.last_order_at));
+  if (filter === "高复购") return sorted.filter((boss) => String(boss.repurchase_level).includes("高"));
+  if (filter === "最近下单") return sorted.filter((boss) => daysSince(boss.last_order_at) <= 7);
+  if (filter === "久未联系") return sorted.filter((boss) => daysSince(boss.last_order_at) >= 3);
+  if (filter === "情绪陪伴型") return sorted.filter((boss) => hasAny(boss, ["倾诉型", "慢热型", "沉默型"]));
+  if (filter === "技术上分型") return sorted.filter((boss) => hasAny(boss, ["上分型"]));
+  if (filter === "娱乐整活型") return sorted.filter((boss) => hasAny(boss, ["娱乐型", "整活型"]));
+  return sorted;
+}
+
+function hasAny(boss, values) {
+  const text = `${boss.customer_type?.join(" ")} ${boss.preferred_style} ${boss.notes}`;
+  return values.some((value) => text.includes(value));
+}
+
+function renderBossCard(boss) {
+  const days = daysSince(boss.last_order_at);
+  const shouldContact = days >= 2 || String(boss.repurchase_level).includes("高");
+  return `
+    <article class="boss-card">
+      <div class="boss-card-head">
+        <div>
+          <h3>${escapeHtml(boss.nickname)}</h3>
+          <div class="meta">${escapeHtml(boss.remark || "未备注")} · ${escapeHtml(boss.games || "未记录游戏")}</div>
+        </div>
+        <span class="status-pill ${repurchaseClass(boss.repurchase_level)}">${escapeHtml(boss.repurchase_level || "未知")}</span>
+      </div>
+      <div class="tag-row">
+        ${splitList(boss.customer_type).map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}
+        ${shouldContact ? `<span class="status-pill high">建议联系</span>` : ""}
+      </div>
+      <div class="meta">偏好：${escapeHtml(boss.preferred_style || "未记录")}</div>
+      <div class="meta">最近情绪：${escapeHtml(boss.emotion_pattern || "未记录")}</div>
+      <div class="meta">上次订单：${escapeHtml(boss.last_order_at || "未记录")} · ${days} 天前</div>
+      <div class="button-row">
+        <button class="secondary-button compact" type="button" data-route="bosses/${boss.id}">查看详情</button>
+        <button class="ghost-button compact" type="button" data-route="prep/${boss.id}">开始本单</button>
+        <button class="ghost-button compact" type="button" data-route="review/${boss.id}">写复盘</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderBossDetail(bossId) {
+  const boss = getBoss(bossId);
+  if (!boss) {
+    appView.innerHTML = emptyState("没有找到老板档案", "返回老板列表后重新选择。");
+    return;
+  }
+
+  const orders = state.orders.filter((order) => order.boss_id === boss.id).sort((a, b) => b.created_at.localeCompare(a.created_at));
+
+  appView.innerHTML = `
+    <div class="grid two">
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">${escapeHtml(boss.nickname)}</h3>
+            <p class="card-subtitle">${escapeHtml(boss.remark || "未备注")} · ${escapeHtml(boss.games || "未记录游戏")}</p>
+          </div>
+          <span class="status-pill ${repurchaseClass(boss.repurchase_level)}">${escapeHtml(boss.repurchase_level || "未知")}</span>
+        </div>
+        <div class="card-body">
+          <div class="tag-row">
+            ${splitList(boss.customer_type).map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}
+          </div>
+          <div class="divider"></div>
+          <div class="grid">
+            ${detailLine("常玩时间", boss.play_time)}
+            ${detailLine("喜欢的陪玩风格", boss.preferred_style)}
+            ${detailLine("不喜欢的陪玩风格", boss.disliked_style)}
+            ${detailLine("喜欢的话题", boss.favorite_topics)}
+            ${detailLine("不喜欢的话题", boss.avoid_topics)}
+            ${detailLine("情绪模式", boss.emotion_pattern)}
+            ${detailLine("雷点 / 备注", boss.notes)}
+          </div>
+          <div class="button-row" style="margin-top: 16px;">
+            <button class="primary-button compact" type="button" data-route="bosses/edit/${boss.id}">编辑档案</button>
+            <button class="secondary-button compact" type="button" data-route="prep/${boss.id}">开始本单</button>
+            <button class="secondary-button compact" type="button" data-route="review/${boss.id}">写复盘</button>
+            <button class="danger-button compact" type="button" data-delete-boss="${boss.id}">删除</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">历史订单</h3>
+            <p class="card-subtitle">复盘会沉淀到这里，辅助后续开单。</p>
+          </div>
+        </div>
+        <div class="card-body">
+          ${orders.length ? `<div class="list">${orders.map(renderOrderCard).join("")}</div>` : emptyState("暂无历史订单", "完成订单复盘后会自动记录。")}
+        </div>
+      </section>
+    </div>
+  `;
+
+  bindRouteButtons();
+  appView.querySelector("[data-delete-boss]")?.addEventListener("click", () => deleteBoss(boss.id));
+}
+
+function detailLine(label, value) {
+  return `<div><div class="meta">${escapeHtml(label)}</div><div>${escapeHtml(value || "未记录")}</div></div>`;
+}
+
+function renderBossForm(mode, bossId = "") {
+  const boss =
+    mode === "edit"
+      ? getBoss(bossId)
+      : {
+          nickname: "",
+          remark: "",
+          games: "",
+          play_time: "",
+          customer_type: ["慢热型"],
+          preferred_style: "",
+          disliked_style: "",
+          favorite_topics: "",
+          avoid_topics: "",
+          emotion_pattern: "",
+          repurchase_level: "中",
+          last_order_at: today(),
+          notes: "",
+        };
+
+  if (!boss) {
+    appView.innerHTML = emptyState("没有找到老板档案", "返回老板列表后重新选择。");
+    return;
+  }
+
+  appView.innerHTML = `
+    <form class="card" id="boss-form">
+      <div class="card-header">
+        <div>
+          <h3 class="card-title">${mode === "edit" ? "编辑老板档案" : "新建老板档案"}</h3>
+          <p class="card-subtitle">只记录服务偏好和游戏体验相关信息。</p>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="form-grid">
+          ${inputField("老板昵称", "nickname", boss.nickname, true)}
+          ${inputField("备注名", "remark", boss.remark)}
+          ${inputField("常玩游戏", "games", boss.games, true)}
+          ${inputField("常玩时间", "play_time", boss.play_time)}
+          ${selectField("客户类型", "customer_type", customerTypes, splitList(boss.customer_type)[0] || "慢热型")}
+          ${selectField("复购概率", "repurchase_level", ["高", "中高", "中", "低"], boss.repurchase_level || "中")}
+          ${inputField("上次订单时间", "last_order_at", boss.last_order_at || today(), false, "date")}
+          ${inputField("偏好风格", "preferred_style", boss.preferred_style, true)}
+          ${textareaField("不喜欢的风格", "disliked_style", boss.disliked_style)}
+          ${textareaField("喜欢的话题", "favorite_topics", boss.favorite_topics)}
+          ${textareaField("不喜欢的话题", "avoid_topics", boss.avoid_topics)}
+          ${textareaField("情绪模式", "emotion_pattern", boss.emotion_pattern)}
+          ${textareaField("雷点 / 备注", "notes", boss.notes)}
+        </div>
+        <p class="hint" style="margin-top: 12px;">避免记录真实姓名、联系方式、收入、住址、感情经历等敏感隐私。</p>
+        <div class="button-row" style="margin-top: 16px;">
+          <button class="primary-button" type="submit">保存档案</button>
+          <button class="ghost-button" type="button" data-route="bosses">返回列表</button>
+        </div>
+      </div>
+    </form>
+  `;
+
+  bindRouteButtons();
+  appView.querySelector("#boss-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const payload = Object.fromEntries(form.entries());
+    payload.customer_type = [payload.customer_type];
+
+    if (mode === "edit") {
+      state.bosses = state.bosses.map((item) => (item.id === boss.id ? { ...item, ...payload } : item));
+      toastMessage("老板档案已更新");
+      saveState();
+      setRoute(`bosses/${boss.id}`);
+      return;
+    }
+
+    const newBoss = { ...payload, id: id("boss") };
+    state.bosses.unshift(newBoss);
+    saveState();
+    toastMessage("老板档案已创建");
+    setRoute(`bosses/${newBoss.id}`);
+  });
+}
+
+function deleteBoss(bossId) {
+  const boss = getBoss(bossId);
+  if (!boss) return;
+  const confirmed = window.confirm(`确认删除 ${boss.nickname} 的档案和相关记录？`);
+  if (!confirmed) return;
+  state.bosses = state.bosses.filter((item) => item.id !== bossId);
+  state.orders = state.orders.filter((order) => order.boss_id !== bossId);
+  state.assists = state.assists.filter((assist) => assist.boss_id !== bossId);
+  saveState();
+  toastMessage("老板档案已删除");
+  setRoute("bosses");
+}
+
+function renderPersona() {
+  const persona = state.persona;
+  appView.innerHTML = `
+    <form class="card" id="persona-form">
+      <div class="card-header">
+        <div>
+          <h3 class="card-title">陪玩人设设置</h3>
+          <p class="card-subtitle">AI 输出会尽量贴合这里的语气和边界。</p>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="form-grid">
+          ${inputField("陪玩昵称", "nickname", persona.nickname, true)}
+          ${selectField("人设风格", "style", styleOptions, persona.style)}
+          ${inputField("主要游戏", "main_games", persona.main_games)}
+          ${inputField("说话语气", "tone", persona.tone, true)}
+          ${inputField("是否可以开玩笑", "can_joke", persona.can_joke)}
+          ${selectField("主动程度", "active_level", ["偏主动", "中等主动", "偏安静"], persona.active_level)}
+          ${textareaField("不想使用的话术类型", "avoid_tone", persona.avoid_tone)}
+          ${textareaField("禁用词 / 禁用表达 / 备注", "notes", persona.notes)}
+        </div>
+        <div class="button-row" style="margin-top: 16px;">
+          <button class="primary-button" type="submit">保存人设</button>
+          <button class="secondary-button" type="button" data-preview-persona>预览话术</button>
+        </div>
+      </div>
+    </form>
+    <section class="card" style="margin-top: 16px;" id="persona-preview">
+      <div class="card-header">
+        <div>
+          <h3 class="card-title">人设预览</h3>
+          <p class="card-subtitle">用于检查语气是否自然。</p>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="ai-output">
+          ${outputCard("开场示例", personaPreview(persona))}
+        </div>
+      </div>
+    </section>
+  `;
+
+  appView.querySelector("#persona-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    state.persona = Object.fromEntries(new FormData(event.currentTarget).entries());
+    saveState();
+    toastMessage("陪玩人设已保存");
+    renderPersona();
+  });
+
+  appView.querySelector("[data-preview-persona]").addEventListener("click", () => {
+    const formState = Object.fromEntries(new FormData(appView.querySelector("#persona-form")).entries());
+    appView.querySelector("#persona-preview .ai-output").innerHTML = outputCard("开场示例", personaPreview(formState));
+    bindCopyButtons();
+  });
+
+  bindCopyButtons();
+}
+
+function personaPreview(persona) {
+  const game = splitList(persona.main_games)[0] || "今天的游戏";
+  if (persona.style.includes("技术")) {
+    return `老板今天打${game}的话，我先帮你看阵容和节奏，前两把咱们稳一点，把手感找出来。`;
+  }
+  if (persona.style.includes("搞笑") || persona.style.includes("整活")) {
+    return `老板今天打${game}不紧张，咱们主打一个快乐有效，赢了上分，输了也得有点节目效果。`;
+  }
+  return `老板今天还打${game}吗？咱们先轻松来，状态慢慢找，不用一上来就有压力。`;
+}
+
+function renderPrep(defaultBossId = "") {
+  if (!state.bosses.length) {
+    appView.innerHTML = emptyState("先新建老板档案", "开单准备需要选择一个老板档案。");
+    return;
+  }
+
+  const bossId = defaultBossId || selectedBossId || state.bosses[0].id;
+  selectedBossId = bossId;
+
+  appView.innerHTML = `
+    <div class="grid two">
+      <form class="card" id="prep-form">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">本次订单信息</h3>
+            <p class="card-subtitle">生成开场话术、服务策略和雷点提醒。</p>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="form-grid">
+            <label class="field full">
+              <span>选择老板</span>
+              ${bossSelect("boss_id", bossId)}
+            </label>
+            ${inputField("本次游戏", "game", getBoss(bossId)?.games || "", true)}
+            ${inputField("本次目标", "goal", "轻松上分，先找手感")}
+            ${selectField("本次预计时长", "duration", ["1 小时", "2 小时", "3 小时", "包晚"], "2 小时")}
+            ${selectField("老板当前状态", "emotion", emotionOptions, "沉默")}
+            ${selectField("本次陪玩风格", "style", styleOptions, state.persona.style)}
+            ${selectField("是否老客户", "is_old", ["是", "否"], "是")}
+            ${selectField("是否需要更主动聊天", "need_active", ["适中", "需要", "不需要"], "适中")}
+          </div>
+          <div class="button-row" style="margin-top: 16px;">
+            <button class="primary-button" type="submit">生成开场建议</button>
+            <button class="ghost-button" type="button" data-fill-prep>填入示例</button>
+          </div>
+        </div>
+      </form>
+
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">AI 输出</h3>
+            <p class="card-subtitle">内容短句优先，便于复制到聊天窗口。</p>
+          </div>
+        </div>
+        <div class="card-body">
+          <div id="prep-output" class="ai-output">
+            ${emptyState("等待生成", "填写订单信息后生成本单服务建议。")}
+          </div>
+        </div>
+      </section>
+    </div>
+  `;
+
+  const form = appView.querySelector("#prep-form");
+  form.boss_id.addEventListener("change", (event) => {
+    selectedBossId = event.target.value;
+    form.game.value = getBoss(selectedBossId)?.games || "";
+  });
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const payload = Object.fromEntries(new FormData(form).entries());
+    appView.querySelector("#prep-output").innerHTML = renderOutput(generatePrep(payload));
+    bindCopyButtons();
+  });
+  appView.querySelector("[data-fill-prep]").addEventListener("click", () => {
+    form.goal.value = "轻松打一会儿，输赢都别太有压力";
+    form.emotion.value = "输游戏后烦躁";
+    form.need_active.value = "适中";
+  });
+}
+
+function renderAssist(defaultBossId = "") {
+  if (!state.bosses.length) {
+    appView.innerHTML = emptyState("先新建老板档案", "实时辅助需要选择一个老板档案。");
+    return;
+  }
+
+  const bossId = defaultBossId || selectedBossId || state.bosses[0].id;
+  selectedBossId = bossId;
+
+  appView.innerHTML = `
+    <div class="grid two">
+      <form class="card" id="assist-form">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">当前情况</h3>
+            <p class="card-subtitle">适合冷场、沉默、暴躁、尴尬等场景。</p>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="form-grid">
+            <label class="field full">
+              <span>选择老板</span>
+              ${bossSelect("boss_id", bossId)}
+            </label>
+            ${textareaField("当前情况描述", "situation", "老板输了两把，现在不怎么说话，感觉有点烦。", true)}
+            ${selectField("老板当前情绪", "emotion", emotionOptions, "输游戏后烦躁")}
+            ${inputField("当前游戏局势", "game_state", "连输两把，队友节奏比较乱")}
+            ${selectField("想要的回复风格", "reply_style", styleOptions, state.persona.style)}
+            ${selectField("是否需要更委婉", "soft", ["是", "否"], "是")}
+            ${selectField("是否需要更幽默", "humor", ["否", "是"], "否")}
+          </div>
+          <div class="button-row" style="margin-top: 16px;">
+            <button class="primary-button" type="submit">生成应对建议</button>
+            <button class="ghost-button" type="button" data-shorter>更短一点</button>
+          </div>
+        </div>
+      </form>
+
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">AI 输出</h3>
+            <p class="card-subtitle">先判断情绪，再给陪玩可执行话术。</p>
+          </div>
+        </div>
+        <div class="card-body">
+          <div id="assist-output" class="ai-output">
+            ${emptyState("等待生成", "描述当前情况后生成实时建议。")}
+          </div>
+        </div>
+      </section>
+    </div>
+  `;
+
+  const form = appView.querySelector("#assist-form");
+  form.boss_id.addEventListener("change", (event) => {
+    selectedBossId = event.target.value;
+  });
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const payload = Object.fromEntries(new FormData(form).entries());
+    const output = generateAssist(payload);
+    state.assists.unshift({
+      id: id("assist"),
+      boss_id: payload.boss_id,
+      situation: payload.situation,
+      emotion: payload.emotion,
+      suggestion: output.strategy,
+      recommended_reply: output.reply,
+      created_at: today(),
+    });
+    saveState();
+    appView.querySelector("#assist-output").innerHTML = renderOutput(output);
+    bindCopyButtons();
+  });
+  appView.querySelector("[data-shorter]").addEventListener("click", () => {
+    const payload = Object.fromEntries(new FormData(form).entries());
+    appView.querySelector("#assist-output").innerHTML = renderOutput(generateAssist({ ...payload, shorter: true }));
+    bindCopyButtons();
+  });
+}
+
+function renderReview(defaultBossId = "") {
+  if (!state.bosses.length) {
+    appView.innerHTML = emptyState("先新建老板档案", "订单复盘需要选择一个老板档案。");
+    return;
+  }
+
+  const bossId = defaultBossId || selectedBossId || state.bosses[0].id;
+  selectedBossId = bossId;
+
+  appView.innerHTML = `
+    <div class="grid two">
+      <form class="card" id="review-form">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">订单复盘</h3>
+            <p class="card-subtitle">复盘会保存为历史订单，并给出画像更新建议。</p>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="form-grid">
+            <label class="field full">
+              <span>选择老板</span>
+              ${bossSelect("boss_id", bossId)}
+            </label>
+            ${inputField("本次游戏", "game", getBoss(bossId)?.games || "", true)}
+            ${selectField("本次时长", "duration", ["1 小时", "2 小时", "3 小时", "包晚"], "2 小时")}
+            ${inputField("输赢情况", "result", "前期输了两把，后面赢了两把")}
+            ${selectField("老板整体情绪", "boss_emotion", emotionOptions, "开心")}
+            ${selectField("是否出现冷场", "had_silence", ["否", "是"], "否")}
+            ${selectField("是否续单", "renewed", ["否", "是"], "否")}
+            ${selectField("是否有投诉 / 不满", "complaint", ["否", "是"], "否")}
+            ${textareaField("本次聊到的重要信息", "important_notes", "老板说最近工作比较累，想轻松打。")}
+            ${textareaField("本次表现亮点", "good_points", "没有强行追问，后半段气氛比较自然。")}
+            ${textareaField("需要改进的地方", "improvements", "下次可以提前准备老板常玩的英雄和打法。")}
+          </div>
+          <div class="button-row" style="margin-top: 16px;">
+            <button class="primary-button" type="submit">生成复盘</button>
+            <button class="secondary-button" type="button" data-save-review>保存订单</button>
+          </div>
+        </div>
+      </form>
+
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">AI 输出</h3>
+            <p class="card-subtitle">确认后可把建议写回老板档案。</p>
+          </div>
+        </div>
+        <div class="card-body">
+          <div id="review-output" class="ai-output">
+            ${emptyState("等待生成", "填写复盘信息后生成订单总结和维护建议。")}
+          </div>
+          <div class="button-row" style="margin-top: 14px;">
+            <button class="ghost-button compact" type="button" data-apply-profile disabled>更新老板画像</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  `;
+
+  let lastOutput = null;
+  const form = appView.querySelector("#review-form");
+  form.boss_id.addEventListener("change", (event) => {
+    selectedBossId = event.target.value;
+    form.game.value = getBoss(selectedBossId)?.games || "";
+  });
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const payload = Object.fromEntries(new FormData(form).entries());
+    lastOutput = generateReview(payload);
+    appView.querySelector("#review-output").innerHTML = renderOutput(lastOutput);
+    appView.querySelector("[data-apply-profile]").disabled = false;
+    bindCopyButtons();
+  });
+  appView.querySelector("[data-save-review]").addEventListener("click", () => {
+    const payload = Object.fromEntries(new FormData(form).entries());
+    const output = lastOutput || generateReview(payload);
+    saveReview(payload, output);
+  });
+  appView.querySelector("[data-apply-profile]").addEventListener("click", () => {
+    if (!lastOutput) return;
+    applyProfileSuggestion(form.boss_id.value, lastOutput.profileUpdate);
+  });
+}
+
+function saveReview(payload, output) {
+  state.orders.unshift({
+    id: id("order"),
+    boss_id: payload.boss_id,
+    game: payload.game,
+    duration: payload.duration,
+    result: payload.result,
+    boss_emotion: payload.boss_emotion,
+    had_silence: payload.had_silence === "是",
+    renewed: payload.renewed === "是",
+    important_notes: payload.important_notes,
+    review_summary: output.summary,
+    next_contact_suggestion: output.nextContact,
+    created_at: today(),
+  });
+  state.bosses = state.bosses.map((boss) =>
+    boss.id === payload.boss_id
+      ? {
+          ...boss,
+          last_order_at: today(),
+          repurchase_level: output.repurchase,
+          emotion_pattern: `${boss.emotion_pattern || ""} ${payload.boss_emotion}；${payload.result}`.trim(),
+        }
+      : boss,
+  );
+  saveState();
+  toastMessage("订单复盘已保存");
+}
+
+function applyProfileSuggestion(bossId, suggestion) {
+  state.bosses = state.bosses.map((boss) =>
+    boss.id === bossId
+      ? {
+          ...boss,
+          notes: `${boss.notes || ""}\n${suggestion}`.trim(),
+        }
+      : boss,
+  );
+  saveState();
+  toastMessage("画像建议已写入备注");
+}
+
+function renderReminders() {
+  const reminders = getReminders();
+  appView.innerHTML = `
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h3 class="card-title">联系提醒</h3>
+          <p class="card-subtitle">自然维护老客户，不催单、不打扰。</p>
+        </div>
+      </div>
+      <div class="card-body">
+        ${reminders.length ? `<div class="list">${reminders.map(renderReminderCard).join("")}</div>` : emptyState("暂无联系提醒", "有订单记录后会自动生成提醒。")}
+      </div>
+    </section>
+  `;
+  bindCopyButtons();
+}
+
+function getReminders() {
+  return state.bosses
+    .map((boss) => {
+      const days = daysSince(boss.last_order_at);
+      const experience = String(boss.repurchase_level).includes("高") ? "较好" : "稳定";
+      return {
+        ...boss,
+        days,
+        experience,
+        message: generateContactMessage(boss),
+        shouldContact: days >= 2 || String(boss.repurchase_level).includes("高"),
+      };
+    })
+    .filter((boss) => boss.shouldContact)
+    .sort((a, b) => b.days - a.days);
+}
+
+function renderReminderCard(item) {
+  return `
+    <article class="reminder-card">
+      <div class="reminder-card-head">
+        <div>
+          <h3>${escapeHtml(item.nickname)}</h3>
+          <div class="meta">上次订单：${escapeHtml(item.last_order_at || "未记录")} · ${item.days} 天前</div>
+        </div>
+        <span class="status-pill ${repurchaseClass(item.repurchase_level)}">${escapeHtml(item.repurchase_level || "未知")}</span>
+      </div>
+      <div class="meta">上次体验：${escapeHtml(item.experience)} · 建议时间：今晚 8 点左右</div>
+      ${outputCard("推荐联系话术", item.message)}
+      <div class="meta">注意：不要直接催单，不要问“怎么这么久没来”。</div>
+    </article>
+  `;
+}
+
+function renderOrderCard(order) {
+  const boss = getBoss(order.boss_id);
+  return `
+    <article class="order-card">
+      <div class="order-card-head">
+        <div>
+          <h3>${escapeHtml(boss?.nickname || "未知老板")}</h3>
+          <div class="meta">${escapeHtml(order.created_at)} · ${escapeHtml(order.game)} · ${escapeHtml(order.duration)}</div>
+        </div>
+        <span class="status-pill ${order.renewed ? "high" : "medium"}">${order.renewed ? "已续单" : "未续单"}</span>
+      </div>
+      <div class="meta">情绪：${escapeHtml(order.boss_emotion)} · 冷场：${order.had_silence ? "有" : "无"}</div>
+      <div>${escapeHtml(order.review_summary || order.result || "暂无总结")}</div>
+      <div class="meta">${escapeHtml(order.next_contact_suggestion || "")}</div>
+    </article>
+  `;
+}
+
+function generatePrep(payload) {
+  const boss = getBoss(payload.boss_id) || {};
+  const style = payload.style || state.persona.style;
+  const opening = makeOpening(boss, payload.game, style);
+  return {
+    strategy: `${boss.nickname || "老板"}偏${splitList(boss.customer_type).join("、") || "未记录"}，本单以“${payload.goal || "轻松体验"}”为主。先给空间，再用游戏节奏自然带起互动。`,
+    opening,
+    topics: [
+      "上次订单里的名场面或手感变化",
+      `${payload.game || boss.games || "本次游戏"}里最近常玩的英雄 / 角色`,
+      payload.goal?.includes("上分") ? "今天想稳一点还是主动找节奏" : "今天想轻松玩还是快乐整活",
+    ],
+    warning: boss.notes || boss.disliked_style || "避免一开始太密集聊天，先观察老板状态。",
+    avoid: [
+      "老板你怎么不说话？",
+      "要不要多点几小时？",
+      "你今天是不是心情不好？",
+    ],
+  };
+}
+
+function generateAssist(payload) {
+  const boss = getBoss(payload.boss_id) || {};
+  const quiet = `${payload.situation} ${payload.emotion}`.includes("沉默") || `${payload.situation} ${payload.emotion}`.includes("不想说话");
+  const angry = `${payload.situation} ${payload.emotion}`.includes("烦") || `${payload.situation} ${payload.emotion}`.includes("暴躁") || `${payload.situation} ${payload.emotion}`.includes("输");
+  const fun = `${payload.situation} ${payload.emotion}`.includes("整活") || payload.humor === "是";
+
+  const judgment = quiet
+    ? "老板可能有点烦，也可能只是想专注游戏，不适合强行追问。"
+    : fun
+      ? "老板当前偏娱乐需求，可以放松配合，不要用太严肃的指挥压住气氛。"
+      : "老板需要稳定感，先回应当前局势，再给一个可执行的小方向。";
+
+  const strategy = angry
+    ? "降低聊天压力，把注意力放回下一局节奏，少评价刚才操作。"
+    : fun
+      ? "接住老板的娱乐需求，配合轻松表达，输赢压力往后放。"
+      : "先短句回应，再根据老板反应决定是否继续聊天。";
+
+  const reply = payload.shorter
+    ? "没事，这两把节奏乱，下一把我帮你多看信息，咱们慢慢打回来。"
+    : fun
+      ? "懂了，今天主打快乐局。咱们赢了血赚，输了也得整出点节目效果。"
+      : "这两把节奏确实有点乱，老板你先不用急，我帮你多看点信息，下一把咱们慢慢打回来。";
+
+  return {
+    judgment,
+    strategy,
+    reply,
+    gentle: "没事啦，刚才确实不好打。你先放松点，我陪你慢慢找手感。",
+    lively: "这两把节奏多少有点乱，下一把咱们把场子找回来。",
+    technical: "下一把我帮你多报位置和技能信息，咱们先稳住开局节奏。",
+    avoid: [
+      "你怎么不说话？",
+      "别生气了。",
+      "其实你刚才也有点问题。",
+    ],
+    note: boss.disliked_style ? `结合老板雷点：${boss.disliked_style}` : "",
+  };
+}
+
+function generateReview(payload) {
+  const boss = getBoss(payload.boss_id) || {};
+  const hadSilence = payload.had_silence === "是";
+  const renewed = payload.renewed === "是";
+  const complaint = payload.complaint === "是";
+  const repurchase = complaint ? "低" : renewed ? "高" : hadSilence ? "中" : "中高";
+  const profileUpdate = hadSilence
+    ? "老板在沉默或输局阶段更适合低压力陪伴，不适合追问原因；下次可以先给空间，再用游戏信息辅助。"
+    : "老板对本次互动接受度较好，下次可以从本次聊到的话题或游戏状态自然开场。";
+
+  return {
+    summary: `${boss.nickname || "老板"}本单${payload.result || "整体完成"}，整体情绪为${payload.boss_emotion || "未记录"}。${hadSilence ? "中途出现冷场，需要保留低压力回应策略。" : "互动较顺，不需要刻意加大聊天强度。"}`,
+    profileUpdate,
+    nextOpening: makeOpening(boss, payload.game, state.persona.style),
+    nextContact: renewed ? "可以在 1-2 天后自然问一句是否继续，不需要强调续单。" : "建议 2-3 天后晚上 8 点左右自然联系，从上次游戏体验切入。",
+    repurchase,
+    performance: `${payload.good_points || "本次服务节奏稳定"}。下次注意：${payload.improvements || "继续记录老板偏好和雷点"}。`,
+  };
+}
+
+function makeOpening(boss, game, style) {
+  const targetGame = game || boss.games || "今天的游戏";
+  if (String(style).includes("技术")) {
+    return `老板今天打${targetGame}的话，我先帮你看节奏，前两把咱们稳一点找手感。`;
+  }
+  if (String(style).includes("整活") || String(style).includes("搞笑")) {
+    return `老板今天还打${targetGame}吗？咱们轻松点来，赢了血赚，输了也有素材。`;
+  }
+  return `老板今天还打${targetGame}吗？上次后面状态挺好的，今天咱们继续慢慢找手感。`;
+}
+
+function generateContactMessage(boss) {
+  const game = splitList(boss.games)[0] || "游戏";
+  if (String(boss.customer_type).includes("上分")) {
+    return `老板今晚打不打${game}？我可以先帮你看阵容和节奏，咱们稳一点冲。`;
+  }
+  if (String(boss.customer_type).includes("整活")) {
+    return `老板今晚打不打${game}？上次节目效果挺足的，今天可以继续快乐一下。`;
+  }
+  return `老板今晚打不打${game}？上次后面几把状态挺不错的，今天可以轻松找找手感。`;
+}
+
+function renderOutput(output) {
+  const items = [
+    ["本单服务策略", output.strategy],
+    ["开场话术", output.opening],
+    ["推荐聊天话题", output.topics],
+    ["老板雷点提醒", output.warning],
+    ["情绪判断", output.judgment],
+    ["当前最优策略", output.strategy],
+    ["推荐话术", output.reply],
+    ["温柔版本", output.gentle],
+    ["活泼版本", output.lively],
+    ["技术版本", output.technical],
+    ["本次订单总结", output.summary],
+    ["老板画像更新建议", output.profileUpdate],
+    ["下次开场话术", output.nextOpening],
+    ["下次联系建议", output.nextContact],
+    ["复购概率", output.repurchase],
+    ["陪玩表现建议", output.performance],
+    ["不建议说的话", output.avoid],
+    ["补充提醒", output.note],
+  ].filter(([, value]) => value && (!Array.isArray(value) || value.length));
+
+  return items.map(([title, value]) => outputCard(title, value)).join("");
+}
+
+function outputCard(title, value) {
+  const content = Array.isArray(value)
+    ? `<ol>${value.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ol>`
+    : `<p>${escapeHtml(value)}</p>`;
+  const copyText = Array.isArray(value) ? value.join("\n") : value;
+  return `
+    <article class="output-card">
+      <header>
+        <h4>${escapeHtml(title)}</h4>
+        <button class="copy-button" type="button" data-copy="${escapeHtml(copyText)}">复制</button>
+      </header>
+      ${content}
+    </article>
+  `;
+}
+
+function inputField(label, name, value = "", required = false, type = "text") {
+  return `
+    <label class="field">
+      <span>${escapeHtml(label)}</span>
+      <input type="${type}" name="${name}" value="${escapeHtml(value)}" ${required ? "required" : ""} />
+    </label>
+  `;
+}
+
+function textareaField(label, name, value = "", required = false) {
+  return `
+    <label class="field full">
+      <span>${escapeHtml(label)}</span>
+      <textarea name="${name}" ${required ? "required" : ""}>${escapeHtml(value)}</textarea>
+    </label>
+  `;
+}
+
+function selectField(label, name, options, selected = "") {
+  return `
+    <label class="field">
+      <span>${escapeHtml(label)}</span>
+      <select name="${name}">
+        ${options.map((option) => `<option value="${escapeHtml(option)}" ${option === selected ? "selected" : ""}>${escapeHtml(option)}</option>`).join("")}
+      </select>
+    </label>
+  `;
+}
+
+function bindRouteButtons() {
+  appView.querySelectorAll("[data-route]").forEach((button) => {
+    button.addEventListener("click", () => setRoute(button.dataset.route));
+  });
+}
+
+function bindCopyButtons() {
+  appView.querySelectorAll("[data-copy]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const text = button.dataset.copy;
+      try {
+        await navigator.clipboard.writeText(text);
+        toastMessage("已复制");
+      } catch {
+        toastMessage("当前浏览器不支持自动复制");
+      }
+    });
+  });
+}
+
+function render() {
+  const currentRoute = route();
+  renderNav();
+  setHeader(currentRoute);
+
+  const [base, action, itemId] = currentRoute.split("/");
+
+  if (base === "home") renderHome();
+  else if (base === "bosses" && action === "new") renderBossForm("new");
+  else if (base === "bosses" && action === "edit") renderBossForm("edit", itemId);
+  else if (base === "bosses" && action) renderBossDetail(action);
+  else if (base === "bosses") renderBosses();
+  else if (base === "persona") renderPersona();
+  else if (base === "prep") renderPrep(action);
+  else if (base === "assist") renderAssist(action);
+  else if (base === "review") renderReview(action);
+  else if (base === "reminders") renderReminders();
+  else renderHome();
+}
+
+document.querySelector("#reset-demo").addEventListener("click", () => {
+  const confirmed = window.confirm("确认重置为示例数据？本地修改会被覆盖。");
+  if (!confirmed) return;
+  state = structuredClone(defaultState);
+  saveState();
+  toastMessage("示例数据已重置");
+  render();
+});
+
+window.addEventListener("hashchange", render);
+render();
