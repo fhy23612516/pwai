@@ -16,9 +16,22 @@ git checkout v0.12.0
 
 生产环境建议优先用 `git revert <commit>` 回滚问题提交，不建议直接 `git reset --hard`。
 
+## v0.16.0 - 关系互动分流和长期记忆
+
+提交：`v0.16.0` tag 指向的 `feat: route relationship memory by persona mode`
+
+- 修正 v0.15.0 的关系判断口径：恋爱、暧昧、私聊、线下见面不再默认识别为风险
+- 新增陪玩人设字段 `relationship_mode`，支持可恋爱感营业、只轻微暧昧、不做恋爱感、未说明多方案
+- 只有色情、违法、胁迫、未成年、隐私勒索等内容作为硬风险拒绝推进
+- 增加轻量 Hermes 式长期记忆字段：`memory_profile`、`memory_interaction_style`、`memory_relationship`、`memory_recent_signals`
+- 开单、实时辅助、复盘会参考老板长期记忆和近期订单 / 求助片段
+- 远程 AI 契约和服务端 prompt 同步改为关系互动分流，不再一刀切
+
 ## v0.15.0 - 关系边界记忆分析
 
 提交：`v0.15.0` tag 指向的 `fix: analyze relationship boundary memory`
+
+注意：该版本把恋爱、暧昧、私联、线下见面默认按边界风险处理；后续 `v0.16.0` 已修正为按陪玩营业意愿分流。
 
 - 新增关系边界风险识别，覆盖谈恋爱、暧昧、私联、线下见面、奔现等信号
 - 开单准备会把老板记忆里的关系信号分析为边界风险，并给出转回游戏体验的策略

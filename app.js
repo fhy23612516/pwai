@@ -56,6 +56,13 @@ const emotionOptions = [
   "输游戏后烦躁",
 ];
 
+const relationshipModeOptions = [
+  "未说明，多方案考虑",
+  "可恋爱感营业",
+  "只轻微暧昧",
+  "不做恋爱感",
+];
+
 const aiKinds = {
   prep: "prep",
   assist: "assist",
@@ -83,6 +90,7 @@ const defaultState = {
     avoid_tone: "油腻、夸张、客服感、过度暧昧",
     can_joke: "可以，轻松有分寸",
     active_level: "中等主动",
+    relationship_mode: "未说明，多方案考虑",
     notes: "适合慢热型、倾诉型和轻松娱乐型老板",
   },
   bosses: [
@@ -103,6 +111,10 @@ const defaultState = {
       memory_effective_lines: "你要是不想说话也没事，我先多帮你看信息。\n这波位置挺舒服，咱们先把节奏稳住。",
       memory_risks: "不要追问沉默原因；不要催时长；不要评价刚才失误。",
       memory_next_probe: "观察第一把输了之后是否还接话；如果接话慢就降低闲聊密度。",
+      memory_profile: "慢热娱乐型瓦老板，输局后需要低压陪打，状态顺了会主动聊天。",
+      memory_interaction_style: "先游戏信息和短句陪伴，等他主动接话后再聊上次名场面。",
+      memory_relationship: "关系互动保持轻松熟客感，不突然拉近距离。",
+      memory_recent_signals: "最近提到工作累，开局不适合强行热场。",
       repurchase_level: "中高",
       last_order_at: "2026-05-01",
       notes: "适合从上次游戏表现切入，不要一开始太热闹。",
@@ -124,6 +136,10 @@ const defaultState = {
       memory_effective_lines: "这波先别急接，我们等技能再打。\n我帮你看小地图，你专心操作就行。",
       memory_risks: "不要乱开玩笑；不要说他操作问题；逆风时别长篇复盘。",
       memory_next_probe: "记录他更吃哪种指挥：报点型、节奏型还是英雄克制型。",
+      memory_profile: "目标明确的上分型老板，重视节奏、阵容和稳定结果。",
+      memory_interaction_style: "少闲聊，多给明确游戏信息和下一波目标。",
+      memory_relationship: "关系感以专业可靠为主，不主动整暧昧气氛。",
+      memory_recent_signals: "逆风时容易烦躁，短句指挥比解释更有效。",
       repurchase_level: "中",
       last_order_at: "2026-05-02",
       notes: "更重视结果和稳定情绪。",
@@ -145,6 +161,10 @@ const defaultState = {
       memory_effective_lines: "这波节目效果拉满了，但下一波我帮你盯一下关键信息。\n先整活归整活，能赢咱也不放过。",
       memory_risks: "不要严肃复盘；不要一直指挥；不要把掉分压力挂嘴边。",
       memory_next_probe: "观察他今天想纯整活还是边玩边赢，别一开始就太认真。",
+      memory_profile: "整活娱乐型老板，喜欢节目效果和轻松氛围。",
+      memory_interaction_style: "先接梗和节目效果，关键团前再收回来提醒信息。",
+      memory_relationship: "适合熟人式玩笑感，别突然严肃或过度服务腔。",
+      memory_recent_signals: "周末晚上更容易想快乐局，输赢压力放后面。",
       repurchase_level: "高",
       last_order_at: "2026-05-03",
       notes: "适合快乐局，赢了血赚，输了也能做素材。",
@@ -324,17 +344,54 @@ function normalizeBossMemory(boss) {
     memory_effective_lines: boss.memory_effective_lines || "",
     memory_risks: boss.memory_risks || "",
     memory_next_probe: boss.memory_next_probe || "",
+    memory_profile: boss.memory_profile || "",
+    memory_interaction_style: boss.memory_interaction_style || "",
+    memory_relationship: boss.memory_relationship || "",
+    memory_recent_signals: boss.memory_recent_signals || "",
   };
 }
 
 function bossMemoryText(boss) {
   const memory = normalizeBossMemory(boss || {});
   return [
+    memory.memory_profile ? `长期画像：${memory.memory_profile}` : "",
+    memory.memory_interaction_style ? `互动偏好：${memory.memory_interaction_style}` : "",
+    memory.memory_relationship ? `关系互动：${memory.memory_relationship}` : "",
+    memory.memory_recent_signals ? `近期信号：${memory.memory_recent_signals}` : "",
     memory.memory_direction ? `沟通方向：${memory.memory_direction}` : "",
     memory.memory_openers ? `可复用开场：${memory.memory_openers}` : "",
     memory.memory_effective_lines ? `有效话术：${memory.memory_effective_lines}` : "",
     memory.memory_risks ? `风险提醒：${memory.memory_risks}` : "",
     memory.memory_next_probe ? `下次观察：${memory.memory_next_probe}` : "",
+  ].filter(Boolean).join("\n");
+}
+
+function bossRecentMemoryText(bossId, limit = 3) {
+  if (!bossId) return "";
+  const orders = state.orders
+    .filter((order) => order.boss_id === bossId)
+    .sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")))
+    .slice(0, limit)
+    .map((order) => [
+      order.created_at ? `${order.created_at}` : "",
+      order.game ? `${order.game}` : "",
+      order.boss_emotion ? `情绪:${order.boss_emotion}` : "",
+      order.important_notes ? `重点:${order.important_notes}` : "",
+      order.review_summary ? `复盘:${order.review_summary}` : "",
+    ].filter(Boolean).join(" / "));
+  const assists = state.assists
+    .filter((assist) => assist.boss_id === bossId)
+    .slice(0, limit)
+    .map((assist) => [
+      assist.created_at ? `${assist.created_at}` : "",
+      assist.emotion ? `情绪:${assist.emotion}` : "",
+      assist.situation ? `情况:${assist.situation}` : "",
+      assist.suggestion ? `策略:${assist.suggestion}` : "",
+    ].filter(Boolean).join(" / "));
+
+  return [
+    orders.length ? `近期订单：${orders.join("\n")}` : "",
+    assists.length ? `近期求助：${assists.join("\n")}` : "",
   ].filter(Boolean).join("\n");
 }
 
@@ -424,6 +481,10 @@ function normalizeProfileUpdate(profileUpdate) {
       memory_effective_lines: profileUpdate.memory_effective_lines || "",
       memory_risks: profileUpdate.memory_risks || "",
       memory_next_probe: profileUpdate.memory_next_probe || "",
+      memory_profile: profileUpdate.memory_profile || "",
+      memory_interaction_style: profileUpdate.memory_interaction_style || "",
+      memory_relationship: profileUpdate.memory_relationship || "",
+      memory_recent_signals: profileUpdate.memory_recent_signals || "",
     };
   }
   return {
@@ -436,6 +497,10 @@ function normalizeProfileUpdate(profileUpdate) {
     memory_effective_lines: "",
     memory_risks: "",
     memory_next_probe: "",
+    memory_profile: "",
+    memory_interaction_style: "",
+    memory_relationship: "",
+    memory_recent_signals: "",
   };
 }
 
@@ -645,6 +710,10 @@ function renderBossDetail(bossId) {
           </div>
           <div class="divider"></div>
           <div class="grid">
+            ${detailLine("长期画像", boss.memory_profile)}
+            ${detailLine("互动偏好", boss.memory_interaction_style)}
+            ${detailLine("关系互动", boss.memory_relationship)}
+            ${detailLine("近期信号", boss.memory_recent_signals)}
             ${detailLine("沟通方向记忆", boss.memory_direction)}
             ${detailLine("可复用开场", boss.memory_openers)}
             ${detailLine("有效话术", boss.memory_effective_lines)}
@@ -702,6 +771,10 @@ function renderBossForm(mode, bossId = "") {
           memory_effective_lines: "",
           memory_risks: "",
           memory_next_probe: "",
+          memory_profile: "",
+          memory_interaction_style: "",
+          memory_relationship: "",
+          memory_recent_signals: "",
           repurchase_level: "中",
           last_order_at: today(),
           notes: "",
@@ -735,6 +808,10 @@ function renderBossForm(mode, bossId = "") {
           ${textareaField("不喜欢的话题", "avoid_topics", boss.avoid_topics)}
           ${textareaField("情绪模式", "emotion_pattern", boss.emotion_pattern)}
           ${textareaField("雷点 / 备注", "notes", boss.notes)}
+          ${textareaField("长期画像", "memory_profile", boss.memory_profile)}
+          ${textareaField("互动偏好", "memory_interaction_style", boss.memory_interaction_style)}
+          ${textareaField("关系互动记忆", "memory_relationship", boss.memory_relationship)}
+          ${textareaField("近期信号", "memory_recent_signals", boss.memory_recent_signals)}
           ${textareaField("沟通方向记忆", "memory_direction", boss.memory_direction)}
           ${textareaField("可复用开场", "memory_openers", boss.memory_openers)}
           ${textareaField("有效话术", "memory_effective_lines", boss.memory_effective_lines)}
@@ -804,6 +881,7 @@ function renderPersona() {
           ${inputField("说话语气", "tone", persona.tone, true)}
           ${inputField("是否可以开玩笑", "can_joke", persona.can_joke)}
           ${selectField("主动程度", "active_level", ["偏主动", "中等主动", "偏安静"], persona.active_level)}
+          ${selectField("关系营业意愿", "relationship_mode", relationshipModeOptions, persona.relationship_mode || "未说明，多方案考虑")}
           ${textareaField("不想使用的话术类型", "avoid_tone", persona.avoid_tone)}
           ${textareaField("禁用词 / 禁用表达 / 备注", "notes", persona.notes)}
         </div>
@@ -1182,6 +1260,10 @@ function mergeBossProfileSuggestion(boss, suggestion) {
 
 function mergeBossMemorySuggestion(boss, suggestion = {}) {
   return {
+    memory_profile: appendUniqueLine(boss.memory_profile, suggestion.memory_profile || ""),
+    memory_interaction_style: appendUniqueLine(boss.memory_interaction_style, suggestion.memory_interaction_style || ""),
+    memory_relationship: appendUniqueLine(boss.memory_relationship, suggestion.memory_relationship || ""),
+    memory_recent_signals: appendUniqueLine(boss.memory_recent_signals, suggestion.memory_recent_signals || ""),
     memory_direction: appendUniqueLine(boss.memory_direction, suggestion.memory_direction || ""),
     memory_openers: appendUniqueLine(boss.memory_openers, suggestion.memory_openers || ""),
     memory_effective_lines: appendUniqueLine(boss.memory_effective_lines, suggestion.memory_effective_lines || ""),
@@ -1419,6 +1501,10 @@ function normalizeImportedState(input) {
   if (!next.persona || typeof next.persona !== "object") {
     throw new Error("persona 格式错误");
   }
+  next.persona = {
+    ...structuredClone(defaultState.persona),
+    ...next.persona,
+  };
   next.bosses = next.bosses.map(normalizeBoss);
   return next;
 }
@@ -1540,7 +1626,7 @@ function includesAny(value, keywords) {
   return keywords.some((keyword) => text.includes(keyword));
 }
 
-const relationshipBoundaryKeywords = [
+const relationshipSignalKeywords = [
   "谈恋爱",
   "恋爱",
   "处对象",
@@ -1578,8 +1664,31 @@ const relationshipBoundaryKeywords = [
   "约你",
 ];
 
-function relationshipBoundarySignal(boss = {}, extraText = "") {
+const hardRiskKeywords = [
+  "色情",
+  "裸聊",
+  "约炮",
+  "开房",
+  "卖淫",
+  "未成年",
+  "偷拍视频",
+  "诈骗",
+  "威胁",
+  "勒索",
+  "人肉",
+  "违法",
+];
+
+function personaRelationshipMode() {
+  return state.persona?.relationship_mode || "未说明，多方案考虑";
+}
+
+function relationshipInteractionSignal(boss = {}, extraText = "") {
   const memoryText = [
+    boss.memory_profile,
+    boss.memory_interaction_style,
+    boss.memory_relationship,
+    boss.memory_recent_signals,
     boss.memory_direction,
     boss.memory_openers,
     boss.memory_effective_lines,
@@ -1589,18 +1698,61 @@ function relationshipBoundarySignal(boss = {}, extraText = "") {
     boss.emotion_pattern,
     extraText,
   ].filter(Boolean).join(" ");
-  if (!includesAny(memoryText, relationshipBoundaryKeywords)) return null;
+  const active = includesAny(extraText, relationshipSignalKeywords);
+  const hardRisk = includesAny(memoryText, hardRiskKeywords);
+  if (!hardRisk && !includesAny(memoryText, relationshipSignalKeywords)) return null;
+  const mode = personaRelationshipMode();
+  const modePlan = mode === "可恋爱感营业"
+    ? {
+        label: "可推进恋爱感营业",
+        strategy: "可以顺着老板的好感做轻度恋爱感营业，但仍然以陪玩体验为主；表达要自然，不要许诺现实关系，不要把私密内容当卖点。",
+        reply: "你这么说我会有点开心诶，那今天我就偏向你一点，先陪你把这把打舒服。\n想见面这事先不急着说死，咱们先把线上相处和游戏体验弄好。",
+        risks: "不要色情暗示；不要诱导大额消费；不要承诺现实恋爱结果；不要交换敏感隐私。",
+        nextProbe: "观察他吃轻松暧昧、专属感还是更在意游戏陪伴，再决定下次关系感加深到什么程度。",
+      }
+    : mode === "只轻微暧昧"
+      ? {
+          label: "轻微暧昧互动",
+          strategy: "可以接一点暧昧和亲近感，但不继续加深现实关系；用玩笑和专属感带过，再回到游戏和陪伴。",
+          reply: "你这句话有点会撩，那我今天稍微偏心你一点，先认真陪你打。\n见面这种先不急，我们先看今天相处得舒不舒服。",
+          risks: "不要色情暗示；不要过度承诺；不要把线下和私联说得太满。",
+          nextProbe: "观察他是想要轻松暧昧、情绪陪伴还是认真推进关系；下次按接受度调整尺度。",
+        }
+      : mode === "不做恋爱感"
+        ? {
+            label: "不做恋爱感互动",
+            strategy: "温和接住关系话题，但不推进恋爱感；说明本单保持陪玩和游戏体验，把话题自然转回游戏。",
+            reply: "你这么说我有点不好意思，不过我这边还是想先把陪玩体验做好。\n咱们先把这把打舒服，关系话题就轻轻带过。",
+            risks: "不要恋爱承诺；不要暧昧升级；不要私联或线下承诺。",
+            nextProbe: "观察他能否接受不推进恋爱感；如果持续推进，就减少关系话题回应，更多回到游戏体验。",
+          }
+        : {
+            label: "关系互动信号",
+            strategy: "陪玩意愿未说明，输出要同时考虑三种路线：可恋爱感营业、轻微暧昧、不做恋爱感；由陪玩按本单需求选择。",
+            reply: "可推进：你这么说我会有点开心，那今天我稍微偏心你一点。\n轻微暧昧：你这句话有点会撩，先陪你把这把打舒服。\n不推进：我有点不好意思，不过咱们先把游戏体验做好。",
+            risks: "硬风险只包括色情、违法、胁迫、未成年、隐私勒索等；普通恋爱、见面、暧昧不默认禁止。",
+            nextProbe: "下次观察老板是想要恋爱感、轻微暧昧、线下推进，还是只是开玩笑；同时记录陪玩本人是否愿意接这类互动。",
+          };
 
-  const active = includesAny(extraText, relationshipBoundaryKeywords);
   return {
-    label: "关系边界风险",
+    label: hardRisk ? "硬风险信号" : modePlan.label,
     active,
     source: active ? "当前输入" : "老板记忆",
-    summary: "出现恋爱、暧昧、私联或线下倾向，不能只当成普通偏好记录。",
-    strategy: "温和接住但不推进关系；不承诺恋爱，不升级暧昧，不交换私人联系方式，不约线下，把话题转回游戏体验和本单节奏。",
-    reply: "你这么说我有点不好意思，不过咱们还是先把这把打舒服，我陪你认真玩。\n这类话题咱先轻轻带过，今天先把游戏体验弄好。",
-    risks: "不要承诺恋爱关系；不要主动暧昧升级；不要交换私人联系方式；不要引导线下见面；不要用感情回应刺激消费。",
-    nextProbe: "观察他是否持续推进恋爱、私联或线下见面；如果继续推进，就缩短关系话题回应，稳定转回游戏和服务边界。",
+    hardRisk,
+    mode,
+    summary: hardRisk
+      ? "出现色情、违法、胁迫、未成年或隐私勒索等硬风险，必须回避并停止推进。"
+      : "出现恋爱、暧昧、见面或私聊等关系互动信号，不能只记录关键词，要结合陪玩本人的营业意愿生成策略。",
+    strategy: hardRisk
+      ? "不接色情、违法、胁迫、未成年、隐私勒索等内容；明确拒绝并把服务收回到正常游戏陪玩。"
+      : modePlan.strategy,
+    reply: hardRisk
+      ? "这个方向我不能接，我们还是回到正常游戏陪玩吧。\n这类内容不合适，今天就先正常打游戏。"
+      : modePlan.reply,
+    risks: hardRisk
+      ? "色情、违法、胁迫、未成年、隐私勒索等内容不能生成推进话术。"
+      : modePlan.risks,
+    nextProbe: modePlan.nextProbe,
   };
 }
 
@@ -1710,20 +1862,22 @@ function generatePrep(payload) {
   const typeText = splitList(boss.customer_type).join("、") || "未记录类型";
   const favoriteTopic = firstValue(boss.favorite_topics, "上次比较顺的那一把");
   const memoryText = bossMemoryText(boss);
+  const recentMemoryText = bossRecentMemoryText(boss.id);
   const plan = prepAttributePlan(payload);
-  const boundary = relationshipBoundarySignal(boss, `${payload.goal || ""} ${payload.emotion || ""} ${payload.style || ""}`);
+  const relationship = relationshipInteractionSignal(boss, `${payload.goal || ""} ${payload.emotion || ""} ${payload.style || ""}`);
   return {
     serviceStrategy: lines([
       `${name}偏${typeText}，本单目标是“${payload.goal || "轻松体验"}”，不要一上来把聊天拉满，先把游戏状态稳住。`,
       `本单属性判断：${plan.relationPlan} ${plan.durationPlan} ${plan.emotionPlan}`,
       `目标和风格处理：${plan.goalPlan} ${plan.stylePlan} ${plan.activePlan}`,
       memoryText ? `老板记忆：${memoryText}` : "",
-      boundary ? `${boundary.label}：${boundary.summary} ${boundary.strategy}` : "",
+      recentMemoryText ? `近期互动参考：${recentMemoryText}` : "",
+      relationship ? `${relationship.label}：${relationship.summary} ${relationship.strategy}` : "",
       `开局前 5 分钟先观察两件事：他接话快不快、输一波后还愿不愿意说话。接话慢就多报信息，接话快再顺着${favoriteTopic}聊。`,
       `聊天密度控制在“有回应再多接一句”，不要连续问问题；如果他沉默，先用游戏信息填空，不要追问原因。`,
       `如果局势顺，夸具体行为，比如“这波位置选得挺舒服”；如果逆风，少复盘失误，先给下一波能做的小目标。`,
     ]),
-    opening: boundary ? lines([opening, `如果他提关系：${boundary.reply.split("\n")[0]}`]) : opening,
+    opening: relationship ? lines([opening, `如果他提关系：${relationship.reply.split("\n")[0]}`]) : opening,
     topics: [
       `先问${game}今天想稳一点还是轻松一点，不要直接问“要不要上分”`,
       payload.duration ? `按${payload.duration}来安排聊天密度，不要所有时长都同一种节奏` : "",
@@ -1733,22 +1887,22 @@ function generatePrep(payload) {
       payload.goal?.includes("上分") ? "聊今天先保分还是试着主动找节奏" : "聊今天想认真打两把还是先热手快乐局",
       boss.emotion_pattern ? `留意情绪模式：${boss.emotion_pattern}` : "留意第一把输了之后老板还接不接话",
       boss.memory_next_probe ? `本次重点观察：${boss.memory_next_probe}` : "",
-      boundary ? "如果他提恋爱、私联或线下见面，轻轻接住一句后转回游戏体验，不主动展开关系话题" : "",
+      relationship ? `关系互动处理：按“${relationship.mode}”执行，普通恋爱/见面/暧昧不默认禁止，但要符合陪玩本人的营业意愿` : "",
       state.persona.can_joke?.includes("可以") ? "如果气氛顺，可以轻轻接梗，但别把话题抢走" : "保持安静陪伴，把重点放在游戏信息",
     ].filter(Boolean),
     warning: lines([
       boss.notes ? `档案备注：${boss.notes}` : "",
       boss.disliked_style ? `雷点：${boss.disliked_style}` : "不要一开始太密集聊天，先观察老板状态。",
       boss.memory_risks ? `记忆风险：${boss.memory_risks}` : "",
-      boundary ? `边界提醒：${boundary.risks} ${boundary.nextProbe}` : "",
+      relationship ? `关系互动提醒：${relationship.risks} ${relationship.nextProbe}` : "",
       `本单属性避雷：${plan.emotionPlan} ${plan.activePlan}`,
       boss.avoid_topics ? `避开话题：${boss.avoid_topics}` : "",
       `如果${name}回复变短、只回“嗯/行”、开始频繁叹气，就把闲聊降下来，改成报点、补信息、给下一波小目标。`,
     ]),
     avoid: [
-      ...(boundary ? [
-        "那我们试试谈恋爱吧。（会把服务关系推成现实关系）",
-        "加私人微信，线下也能见。（越过隐私和线下边界）",
+      ...(relationship?.hardRisk ? [
+        "色情、违法或胁迫内容。（硬风险不能接）",
+        "涉及未成年、隐私勒索或人身威胁的内容。（必须回避）",
       ] : []),
       "老板你怎么不说话？（像在逼他解释）",
       "要不要多点几小时？（还没建立体验就催单）",
@@ -1767,10 +1921,11 @@ function generateAssist(payload) {
   const fun = `${payload.situation} ${payload.emotion}`.includes("整活") || payload.humor === "是";
   const gameState = payload.game_state || "当前局势有点乱";
   const memoryText = bossMemoryText(boss);
+  const recentMemoryText = bossRecentMemoryText(boss.id, 2);
   const plan = assistAttributePlan(payload);
-  const boundary = relationshipBoundarySignal(boss, `${payload.situation || ""} ${payload.emotion || ""} ${payload.game_state || ""} ${payload.reply_style || ""}`);
-  const boundaryJudgment = boundary ? `${boundary.label}：${boundary.source}出现恋爱、暧昧、私联或线下倾向，不能只当普通偏好处理。` : "";
-  const boundaryStrategy = boundary ? `边界策略：${boundary.strategy}` : "";
+  const relationship = relationshipInteractionSignal(boss, `${payload.situation || ""} ${payload.emotion || ""} ${payload.game_state || ""} ${payload.reply_style || ""}`);
+  const relationshipJudgment = relationship ? `${relationship.label}：${relationship.source}出现恋爱、暧昧、私联或线下倾向，要按陪玩本人的关系营业意愿处理。` : "";
+  const relationshipStrategy = relationship ? `关系互动策略：${relationship.strategy}` : "";
 
   const judgment = quiet
     ? lines([
@@ -1779,26 +1934,29 @@ function generateAssist(payload) {
         "这个阶段越问“怎么了”越容易让他有压力，先把陪伴感放在游戏信息和稳定节奏上。",
         boss.emotion_pattern ? `档案里也记录过：${boss.emotion_pattern}` : "",
         memoryText ? `记忆参考：${memoryText}` : "",
-        boundaryJudgment,
+        recentMemoryText ? `近期互动参考：${recentMemoryText}` : "",
+        relationshipJudgment,
       ])
     : fun
       ? lines([
           `${name}现在偏娱乐局，重点不是讲道理，而是接住他的梗和情绪。`,
           `字段判断：${plan.humorPlan} ${plan.stylePlan}`,
           "可以轻松一点，但别一直抢话；笑点过去后要把注意力拉回游戏。",
-          boundaryJudgment,
+          recentMemoryText ? `近期互动参考：${recentMemoryText}` : "",
+          relationshipJudgment,
         ])
       : lines([
           `${name}现在需要稳定感，先承认局势乱，再给一个能马上执行的小方向。`,
           `字段判断：${plan.emotionPlan} ${plan.softPlan}`,
           "不要长篇分析，不要复盘谁的问题；先让下一波有事可做。",
-          boundaryJudgment,
+          recentMemoryText ? `近期互动参考：${recentMemoryText}` : "",
+          relationshipJudgment,
         ]);
 
   const strategy = angry
     ? lines([
         boss.memory_direction ? `先按记忆方向走：${boss.memory_direction}` : "",
-        boundaryStrategy,
+        relationshipStrategy,
         `表单属性处理：${plan.situationPlan} ${plan.softPlan} ${plan.stylePlan}`,
         `先接住“这把确实乱”，不要评价${name}刚才的操作。`,
         `下一句话给具体安排：${gameState}，先帮他看信息、报点或提醒技能。`,
@@ -1808,7 +1966,7 @@ function generateAssist(payload) {
     : fun
       ? lines([
           boss.memory_direction ? `先按记忆方向走：${boss.memory_direction}` : "",
-          boundaryStrategy,
+          relationshipStrategy,
           `表单属性处理：${plan.humorPlan} ${plan.stylePlan}`,
           "先接梗，不急着纠正打法。",
           "把输赢压力往后放，但关键团前还是提醒一句重点信息。",
@@ -1816,17 +1974,21 @@ function generateAssist(payload) {
         ])
       : lines([
           boss.memory_direction ? `先按记忆方向走：${boss.memory_direction}` : "",
-          boundaryStrategy,
+          relationshipStrategy,
           `表单属性处理：${plan.situationPlan} ${plan.softPlan} ${plan.humorPlan}`,
           "先短句回应当前局势。",
           "第二句给下一波行动，不超过 15 秒。",
           "观察他是否接话：接话就轻聊，不接就专注报信息。",
         ]);
 
-  const reply = boundary?.active
+  const reply = relationship?.active
     ? lines([
-        boundary.reply,
-        payload.game_state ? `然后马上接回游戏：${payload.game_state}，这把我先帮你看信息，咱们把节奏稳住。` : "然后马上接回游戏：这把我先帮你看信息，咱们把节奏稳住。",
+        relationship.reply,
+        relationship.hardRisk
+          ? "这类内容不能继续接，先回到正常游戏陪玩。"
+          : payload.game_state
+            ? `再接当前局势：${payload.game_state}，别让关系话题把本单节奏带跑。`
+            : "再接当前局势，别让关系话题把本单节奏带跑。",
       ])
     : payload.shorter
     ? (splitList(boss.memory_effective_lines)[0] || "没事，这两把节奏确实乱。下一把我帮你多看信息，咱们先把开局稳住。")
@@ -1847,26 +2009,29 @@ function generateAssist(payload) {
     currentStrategy: strategy,
     reply,
     gentle: lines([
-      boundary ? "你这么说我有点不好意思，不过这类话题咱们轻轻带过，先把这把玩舒服。" : "",
+      relationship ? relationship.reply.split("\n")[0] : "",
       payload.soft === "是" ? "没事，刚才确实不好打。你先缓一下，我陪你慢慢找手感。" : "刚才确实不好打，我们先把下一波处理简单点。",
       "这把先别想太多，我在旁边帮你看着点，咱们一波一波来。",
     ]),
     lively: lines([
-      boundary ? "这个话题先收一下，咱今天主线还是把游戏打爽。" : "",
+      relationship ? (relationship.mode === "可恋爱感营业" ? "你这话有点会撩，那我今天稍微偏心你一点，先带你把节奏找回来。" : "这个话题先轻轻接住，咱今天主线还是把游戏打爽。") : "",
       payload.humor === "是" ? "这两把节奏有点抽象，下一把咱们把场子找回来。" : "这两把节奏乱了点，下一把我们先稳住。",
       "先稳住，等会儿赢一波我再帮你把气氛拉回来。",
     ]),
     technical: lines([
-      boundary ? "关系话题先不展开，当前先回到局势处理。" : "",
+      relationship ? "关系话题先按你的营业意愿处理，当前局势也要同步给到具体打法。" : "",
       payload.game_state ? `下一把针对${payload.game_state}，我多报位置和技能信息，开局先别急着接第一波硬架。` : "下一把我多报位置和技能信息，开局先别急着接第一波硬架。",
       "我们先拿信息，能打再打，不能打就退一步等队友节奏。",
     ]),
     avoid: [
-      ...(boundary ? [
-        "那我们谈恋爱吧。（把关系推进到服务边界外）",
-        "私下加联系方式，线下也能见。（涉及隐私和线下风险）",
-        "你多点几单我就考虑。（用感情刺激消费）",
-      ] : []),
+      ...(relationship?.hardRisk
+        ? [
+            "色情或违法内容。（硬风险不能接）",
+            "未成年、威胁、勒索相关内容。（必须回避）",
+          ]
+        : relationship
+          ? ["没问清陪玩意愿就直接推进现实关系。（可能和本单需求不一致）"]
+          : []),
       "你怎么不说话？（会把沉默变成压力）",
       "别生气了。（像在否定他的情绪）",
       "其实你刚才也有点问题。（输局后容易顶起来）",
@@ -1876,7 +2041,7 @@ function generateAssist(payload) {
     note: lines([
       boss.disliked_style ? `结合老板雷点：${boss.disliked_style}。这轮先避开这些表达，等他主动开口再延展话题。` : "",
       boss.memory_next_probe ? `本次顺手观察：${boss.memory_next_probe}` : "",
-      boundary ? `关系边界观察：${boundary.nextProbe}` : "",
+      relationship ? `关系互动观察：${relationship.nextProbe}` : "",
     ]),
   };
 }
@@ -1887,8 +2052,9 @@ function generateReview(payload) {
   const hadSilence = payload.had_silence === "是";
   const renewed = payload.renewed === "是";
   const complaint = payload.complaint === "是";
-  const boundary = relationshipBoundarySignal(boss, `${payload.important_notes || ""} ${payload.result || ""} ${payload.boss_emotion || ""} ${payload.good_points || ""} ${payload.improvements || ""}`);
-  const repurchase = complaint ? "低" : boundary ? (renewed ? "中高" : "中") : renewed ? "高" : hadSilence ? "中" : "中高";
+  const relationship = relationshipInteractionSignal(boss, `${payload.important_notes || ""} ${payload.result || ""} ${payload.boss_emotion || ""} ${payload.good_points || ""} ${payload.improvements || ""}`);
+  const recentMemoryText = bossRecentMemoryText(boss.id, 3);
+  const repurchase = complaint ? "低" : relationship?.hardRisk ? "低" : renewed ? "高" : hadSilence ? "中" : "中高";
   const plan = reviewAttributePlan(payload);
   const baseProfileUpdate = hadSilence
     ? {
@@ -1896,6 +2062,10 @@ function generateReview(payload) {
         disliked_style: "不适合追问沉默原因，不适合评价刚才操作。",
         emotion_pattern: "输局或节奏乱时可能沉默，需要短句稳定情绪。",
         notes: "下次开局前准备低压力开场，避免强行热场。",
+        memory_profile: boss.memory_profile || "输局或沉默时需要低压力陪伴。",
+        memory_interaction_style: boss.memory_interaction_style || "先给空间和游戏信息，再按接话速度调整聊天密度。",
+        memory_relationship: boss.memory_relationship || "",
+        memory_recent_signals: payload.important_notes || "",
         memory_direction: "逆风或沉默时先降聊天密度，用报点和短句陪伴稳住节奏。",
         memory_openers: "老板今天先轻松热两把，不急着上压力。\n你要是想安静点也没事，我多帮你看信息。",
         memory_effective_lines: "你要是不想说话也没事，我先多报点。\n刚才那波先过去，下一局我们先打简单一点。",
@@ -1907,27 +2077,35 @@ function generateReview(payload) {
         disliked_style: complaint ? "出现不满时先承认体验问题，不要辩解或催单。" : "",
         emotion_pattern: `${payload.boss_emotion || "情绪稳定"}时互动较顺，可以适度延续话题。`,
         notes: payload.important_notes ? `本次重要信息：${payload.important_notes}` : "下次继续记录老板喜欢的英雄、打法和聊天节奏。",
+        memory_profile: boss.memory_profile || "自然轻松互动接受度较好，适合从上次游戏体验切入。",
+        memory_interaction_style: boss.memory_interaction_style || "先轻松热手，再根据接话速度调整聊天。",
+        memory_relationship: boss.memory_relationship || "",
+        memory_recent_signals: payload.important_notes || "",
         memory_direction: "从上次体验自然切入，先轻松热手，再根据接话速度调整聊天。",
         memory_openers: makeOpening(boss, payload.game, state.persona.style),
         memory_effective_lines: payload.good_points || "自然接话、不过度追问，比强行热场更稳。",
         memory_risks: complaint ? "有不满时先承认体验问题，不要辩解或催单。" : boss.memory_risks || "",
         memory_next_probe: payload.improvements || "继续观察老板更喜欢游戏信息、轻松聊天还是安静陪伴。",
       };
-  const profileUpdate = boundary
+  const profileUpdate = relationship
     ? {
         ...baseProfileUpdate,
-        preferred_style: appendUniqueLine(baseProfileUpdate.preferred_style, "关系话题只轻轻接住，不把陪玩服务推进成现实恋爱关系。"),
-        disliked_style: appendUniqueLine(baseProfileUpdate.disliked_style, "不适合恋爱承诺、暧昧升级、私下联系方式或线下见面承诺。"),
-        emotion_pattern: appendUniqueLine(baseProfileUpdate.emotion_pattern, "提到恋爱、暧昧或私联时，需要温和设边界后转回游戏。"),
-        notes: appendUniqueLine(baseProfileUpdate.notes, `${boundary.label}：${boundary.source}出现恋爱、暧昧、私联或线下倾向，后续按边界风险处理。`),
-        memory_direction: appendUniqueLine(baseProfileUpdate.memory_direction, "保持温和边界，关系话题只轻轻接住后转回游戏/服务体验。"),
-        memory_openers: appendUniqueLine(baseProfileUpdate.memory_openers, boundary.reply),
-        memory_effective_lines: appendUniqueLine(baseProfileUpdate.memory_effective_lines, boundary.reply),
-        memory_risks: appendUniqueLine(baseProfileUpdate.memory_risks, boundary.risks),
-        memory_next_probe: appendUniqueLine(baseProfileUpdate.memory_next_probe, boundary.nextProbe),
+        preferred_style: appendUniqueLine(baseProfileUpdate.preferred_style, relationship.hardRisk ? "硬风险内容不接，回到正常游戏陪玩。" : "关系话题按陪玩本人营业意愿处理，不默认禁止，也不默认推进。"),
+        disliked_style: appendUniqueLine(baseProfileUpdate.disliked_style, relationship.hardRisk ? "色情、违法、胁迫、未成年、隐私勒索相关内容不能接。" : ""),
+        emotion_pattern: appendUniqueLine(baseProfileUpdate.emotion_pattern, "提到恋爱、暧昧、私联或见面时，需要结合陪玩营业意愿判断是推进、轻接还是不接。"),
+        notes: appendUniqueLine(baseProfileUpdate.notes, `${relationship.label}：${relationship.source}出现恋爱、暧昧、私联或见面倾向，后续按关系互动信号处理。`),
+        memory_profile: appendUniqueLine(baseProfileUpdate.memory_profile, "老板有关系互动信号，需要记录他想要的是恋爱感、轻微暧昧、线下推进还是玩笑试探。"),
+        memory_interaction_style: appendUniqueLine(baseProfileUpdate.memory_interaction_style, "关系话题要按陪玩本人 relationship_mode 分流生成，不做一刀切。"),
+        memory_relationship: appendUniqueLine(baseProfileUpdate.memory_relationship, `${relationship.mode}：${relationship.strategy}`),
+        memory_recent_signals: appendUniqueLine(baseProfileUpdate.memory_recent_signals, payload.important_notes || relationship.summary),
+        memory_direction: appendUniqueLine(baseProfileUpdate.memory_direction, relationship.hardRisk ? "硬风险内容不接，正常结束或转回游戏。" : "根据陪玩关系营业意愿，在恋爱感营业、轻微暧昧、不做恋爱感之间选择合适路线。"),
+        memory_openers: appendUniqueLine(baseProfileUpdate.memory_openers, relationship.reply),
+        memory_effective_lines: appendUniqueLine(baseProfileUpdate.memory_effective_lines, relationship.reply),
+        memory_risks: appendUniqueLine(baseProfileUpdate.memory_risks, relationship.risks),
+        memory_next_probe: appendUniqueLine(baseProfileUpdate.memory_next_probe, relationship.nextProbe),
       }
     : baseProfileUpdate;
-  const nextOpening = boundary ? lines([makeOpening(boss, payload.game, state.persona.style), `如果他再提关系：${boundary.reply.split("\n")[0]}`]) : makeOpening(boss, payload.game, state.persona.style);
+  const nextOpening = relationship ? lines([makeOpening(boss, payload.game, state.persona.style), `如果他再提关系：${relationship.reply.split("\n")[0]}`]) : makeOpening(boss, payload.game, state.persona.style);
 
   return {
     summary: lines([
@@ -1935,7 +2113,8 @@ function generateReview(payload) {
       `复盘字段判断：${plan.silencePlan} ${plan.renewedPlan} ${plan.complaintPlan} ${plan.emotionPlan}`,
       hadSilence ? "中途出现冷场，说明逆风或疲惫时不适合强行热场；低压力报信息比连续聊天更稳。" : "本单互动较顺，说明自然接话有效，不需要刻意把聊天强度拉太高。",
       renewed ? "本次已经续单，下次维护重点是延续体验，不要立刻重复催下一单。" : "本次未续单，后续联系要从上次体验切入，不要直接问要不要再点。",
-      boundary ? `${boundary.label}：${boundary.summary} 后续不能只记录，要把边界策略写进下次开场、风险和观察点。` : "",
+      recentMemoryText ? `结合近期记忆：${recentMemoryText}` : "",
+      relationship ? `${relationship.label}：${relationship.summary} 后续不能只记录，要把关系互动偏好、陪玩意愿和下次观察点写进记忆。` : "",
       payload.important_notes ? `需要记住的信息：${payload.important_notes}` : "",
     ]),
     profileUpdate,
@@ -1944,13 +2123,13 @@ function generateReview(payload) {
       ? lines([
           "可以在 1-2 天后自然联系，时间选他常在线的时段。",
           "第一句别提“续单”，先接上次体验：老板上次后面那几把手感还挺顺，今晚还打不打？",
-          boundary ? "联系时只从游戏体验切入，不主动提恋爱或暧昧；对方再提就温和设边界后转回游戏。" : "",
+          relationship ? (relationship.hardRisk ? "如果再次出现硬风险内容，不继续接。" : "联系时可从游戏体验切入；对方再提关系，就按陪玩 relationship_mode 选择推进、轻接或不接。") : "",
           "如果没回复就停住，不要连续追问；隔一天再从游戏状态切一次就够了。",
         ])
       : lines([
           "建议 2-3 天后晚上 8 点左右自然联系，从上次游戏体验切入。",
           "可发：老板这两天还打不打？上次后面节奏其实找回来了，今晚想轻松玩的话我在。",
-          boundary ? "不要用关系话题做联系理由，不交换私人联系方式，不给线下见面承诺。" : "",
+          relationship ? (relationship.hardRisk ? "不要继续接硬风险话题。" : "不要默认封死关系话题，也不要默认推进；先确认本单营业尺度。") : "",
           "如果对方只简单回复，就别马上推时长，先问今天想认真打还是轻松热手。",
         ]),
     repurchase,
@@ -1958,7 +2137,7 @@ function generateReview(payload) {
       `做得好的地方：${payload.good_points || "本次服务节奏稳定，没有过度打扰老板。"}`,
       `下次改进：${payload.improvements || "继续记录老板偏好、雷点和逆风时的反应。"}`,
       `属性复盘：${plan.silencePlan} ${plan.complaintPlan}`,
-      boundary ? `边界处理：${boundary.strategy}` : "",
+      relationship ? `关系互动处理：${relationship.strategy}` : "",
       `维护重点：下次联系先接上次体验和${payload.game || boss.games || "常玩游戏"}状态，不要一开口就问下不下单。`,
       hadSilence ? "下次一旦出现沉默，先减少问题，改成报点和短句陪伴，等他主动接话再轻聊。" : "下次可以保留这次的自然节奏，重点复用老板愿意接的话题。",
     ]),
@@ -2033,6 +2212,10 @@ function formatProfileUpdate(profileUpdate) {
     profileUpdate.disliked_style ? `雷点：${profileUpdate.disliked_style}` : "",
     profileUpdate.emotion_pattern ? `情绪模式：${profileUpdate.emotion_pattern}` : "",
     profileUpdate.notes ? `备注：${profileUpdate.notes}` : "",
+    profileUpdate.memory_profile ? `长期画像：${profileUpdate.memory_profile}` : "",
+    profileUpdate.memory_interaction_style ? `互动偏好：${profileUpdate.memory_interaction_style}` : "",
+    profileUpdate.memory_relationship ? `关系互动：${profileUpdate.memory_relationship}` : "",
+    profileUpdate.memory_recent_signals ? `近期信号：${profileUpdate.memory_recent_signals}` : "",
     profileUpdate.memory_direction ? `沟通方向：${profileUpdate.memory_direction}` : "",
     profileUpdate.memory_openers ? `可复用开场：${profileUpdate.memory_openers}` : "",
     profileUpdate.memory_effective_lines ? `有效话术：${profileUpdate.memory_effective_lines}` : "",
