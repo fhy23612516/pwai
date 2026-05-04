@@ -9,6 +9,10 @@ const navItems = [
   { id: "review", label: "复盘", icon: "R", title: "订单复盘", eyebrow: "订单结束后" },
 ];
 
+const routeMeta = {
+  reminders: { title: "联系提醒", eyebrow: "客户维护" },
+};
+
 const styleOptions = [
   "元气搞笑型",
   "温柔陪伴型",
@@ -218,7 +222,7 @@ function renderNav() {
 
 function setHeader(idValue) {
   const base = idValue.split("/")[0];
-  const item = navItems.find((navItem) => navItem.id === base) || navItems[0];
+  const item = navItems.find((navItem) => navItem.id === base) || routeMeta[base] || navItems[0];
   viewTitle.textContent = item.title;
   viewEyebrow.textContent = item.eyebrow;
 }

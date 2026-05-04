@@ -597,14 +597,21 @@ button {
   }
 
   .nav-list {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    display: flex;
+    overflow-x: auto;
     gap: 6px;
+    scrollbar-width: none;
+  }
+
+  .nav-list::-webkit-scrollbar {
+    display: none;
   }
 
   .nav-item {
     display: grid;
     place-items: center;
     gap: 3px;
+    flex: 0 0 58px;
     min-height: 50px;
     padding: 6px 4px;
     font-size: 11px;
