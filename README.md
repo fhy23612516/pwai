@@ -6,10 +6,22 @@
 
 直接在浏览器打开 `index.html` 即可。
 
-如果后续需要本地服务，可以在项目目录执行：
+也可以用内置 Node 静态服务运行，适合部署测试：
 
 ```powershell
-npx serve .
+npm start
+```
+
+默认监听 `0.0.0.0:4173`。可通过环境变量修改：
+
+```powershell
+$env:PORT="8080"; npm start
+```
+
+健康检查：
+
+```powershell
+curl http://127.0.0.1:4173/healthz
 ```
 
 ## 当前功能
@@ -27,6 +39,7 @@ npx serve .
 - 常用话术收藏
 - 设置页数据备份 / 导入 / 恢复示例
 - 本地 AI provider 适配层，预留真实模型接口
+- 内置 Node 静态服务器和 `/healthz` 健康检查
 
 AI 接口契约见 [docs/ai-contract.md](./docs/ai-contract.md)。
 

@@ -1,0 +1,13 @@
+{
+  "name": "pwai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "陪玩副驾 AI 静态可交互原型",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node tests/smoke.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

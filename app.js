@@ -151,6 +151,10 @@ const defaultState = {
   ],
   assists: [],
   favorites: [],
+  settings: {
+    ai_provider: "local",
+    remote_endpoint: "/api/ai",
+  },
 };
 
 let state = loadState();
@@ -281,6 +285,9 @@ function bossSelect(name = "boss_id", selected = "") {
 }
 
 function generateAiOutput(kind, payload) {
+  if (state.settings?.ai_provider === "remote") {
+    toastMessage("远程 AI 后端暂未接入，已使用本地模板生成");
+  }
   const provider = localAiProvider[kind];
   if (!provider) {
     throw new Error(`未知 AI 场景：${kind}`);
@@ -1116,6 +1123,25 @@ function renderSettings() {
   const exportText = JSON.stringify(state, null, 2);
   appView.innerHTML = `
     <div class="grid two">
+      <form class="card" id="ai-settings-form">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">AI 生成配置</h3>
+            <p class="card-subtitle">部署测试阶段默认使用本地模板；真实模型建议通过服务端代理接入。</p>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="form-grid">
+            ${selectField("生成方式", "ai_provider", ["local", "remote"], state.settings?.ai_provider || "local")}
+            ${inputField("远程接口地址", "remote_endpoint", state.settings?.remote_endpoint || "/api/ai")}
+          </div>
+          <p class="hint" style="margin-top: 12px;">不要把模型 API Key 放在浏览器前端。后续应由服务器读取环境变量并代理请求。</p>
+          <div class="button-row" style="margin-top: 16px;">
+            <button class="primary-button" type="submit">保存 AI 配置</button>
+          </div>
+        </div>
+      </form>
+
       <section class="card">
         <div class="card-header">
           <div>
@@ -1161,6 +1187,16 @@ function renderSettings() {
 
   bindRouteButtons();
   bindCopyButtons();
+  appView.querySelector("#ai-settings-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    state.settings = {
+      ...(state.settings || {}),
+      ...Object.fromEntries(new FormData(event.currentTarget).entries()),
+    };
+    saveState();
+    toastMessage("AI 配置已保存");
+    renderSettings();
+  });
   appView.querySelector("[data-import-json]").addEventListener("click", () => {
     const raw = appView.querySelector("#import-json").value.trim();
     if (!raw) {
@@ -1205,6 +1241,7 @@ function normalizeImportedState(input) {
   if (!Array.isArray(next.orders)) throw new Error("orders 格式错误");
   if (!Array.isArray(next.assists)) throw new Error("assists 格式错误");
   if (!Array.isArray(next.favorites)) next.favorites = [];
+  if (!next.settings || typeof next.settings !== "object") next.settings = structuredClone(defaultState.settings);
   if (!next.persona || typeof next.persona !== "object") {
     throw new Error("persona 格式错误");
   }

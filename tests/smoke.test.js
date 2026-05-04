@@ -8,6 +8,9 @@ const appPath = path.join(root, "app.js");
 const indexPath = path.join(root, "index.html");
 const stylesPath = path.join(root, "styles.css");
 const aiContractPath = path.join(root, "docs", "ai-contract.md");
+const deployDocPath = path.join(root, "docs", "deploy.md");
+const packagePath = path.join(root, "package.json");
+const serverPath = path.join(root, "server.js");
 
 function read(filePath) {
   return fs.readFileSync(filePath, "utf8");
@@ -111,7 +114,7 @@ function test(name, fn) {
 }
 
 test("required static files exist and are not empty", () => {
-  for (const filePath of [indexPath, stylesPath, appPath]) {
+  for (const filePath of [indexPath, stylesPath, appPath, packagePath, serverPath]) {
     const stats = fs.statSync(filePath);
     assert.ok(stats.size > 0, `${path.basename(filePath)} should not be empty`);
   }
@@ -165,6 +168,34 @@ test("AI contract documents required output schemas", () => {
   ]) {
     assert.match(contract, new RegExp(field), `${field} should be documented`);
   }
+});
+
+test("deployment files expose start script and health check", () => {
+  const packageJson = JSON.parse(read(packagePath));
+  const server = read(serverPath);
+  const deployDoc = read(deployDocPath);
+
+  assert.equal(packageJson.scripts.start, "node server.js");
+  assert.equal(packageJson.scripts.test, "node tests/smoke.test.js");
+  assert.match(server, /\/healthz/);
+  assert.match(server, /process\.env\.PORT/);
+  assert.match(deployDoc, /npm start/);
+  assert.match(deployDoc, /\/healthz/);
+});
+
+test("AI provider settings are part of local state", () => {
+  const context = loadAppContext();
+  assert.equal(context.state.settings.ai_provider, "local");
+  assert.equal(context.state.settings.remote_endpoint, "/api/ai");
+
+  const normalized = context.normalizeImportedState({
+    persona: { nickname: "测试" },
+    bosses: [],
+    orders: [],
+    assists: [],
+    favorites: [],
+  });
+  assert.equal(normalized.settings.ai_provider, "local");
 });
 
 test("local data model includes sample persona, bosses, orders, and assists", () => {
