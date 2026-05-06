@@ -2393,7 +2393,6 @@ function generateSimulate(payload) {
   const chatContext = String(payload.chat_context || "");
   const gameState = String(payload.game_state || "");
   const chatHistory = Array.isArray(payload.chat_history) ? payload.chat_history : [];
-  const lastBossMessage = [...chatHistory].reverse().find((message) => message.role === "boss")?.text || "";
   const previousPlayerTurns = chatHistory.filter((message) => message.role === "player").length;
   const memoryText = bossMemoryText(boss);
   const recentMemoryText = bossRecentMemoryText(boss.id, 2);
@@ -2403,29 +2402,25 @@ function generateSimulate(payload) {
   const angry = includesAny(`${scenario} ${emotion} ${chatContext}`, ["暴躁", "烦", "输", "连输"]);
   const fun = includesAny(`${scenario} ${emotion} ${chatContext}`, ["开心", "整活", "想聊天", "关系互动"]);
   const technical = String(boss.customer_type).includes("上分") || includesAny(boss.preferred_style, ["技术", "节奏", "报点"]);
-
-  const bossReply = relationship?.hardRisk
-    ? "这个就算了吧，正常玩游戏就行。别聊这个了，开下一把？"
-    : relationship
-      ? relationship.mode === "可恋爱感营业"
-        ? (previousPlayerTurns > 1
-            ? "你这话说得还挺会哄人的。行，那今天你先偏心我一点，等会儿要是赢了我再考虑多跟你聊两句。"
-            : "你这话说得还挺会哄人的。见面这事先不急，我先看看你今天陪得怎么样。")
-        : relationship.mode === "只轻微暧昧"
-          ? "行啊，你这回答还挺自然的。先打吧，赢了我再考虑要不要多跟你聊两句。"
-          : relationship.mode === "不做恋爱感"
-            ? "嗯，那就先打游戏吧。我刚才也就是随口说说，你别太严肃。"
-            : "你这回答还行，看起来不是那种特别油的。我就是随口问问，先打吧，打舒服了再说。"
-      : angry
-        ? `先开吧，刚才那几把打得有点烦。${technical ? "你多报点有用的，别一直安慰。" : "别问太多，先陪我把节奏打回来。"}`
-        : quiet
-          ? "嗯，先打吧。我今天话可能不多，你正常报信息就行。"
-          : fun
-            ? `可以啊，今天先轻松点。${lastBossMessage ? "你接得还行，别突然又变得太正式。" : "你别太紧张，能接梗就行，输了也别一直复盘。"}`
-            : "行，先试两把看看。你正常发挥就行，别太客服感。";
+  const persona = inferBossChatPersona(boss, { scenario, emotion, chatContext, gameState });
+  const intent = inferPlayerMessageIntent(playerMessage);
+  const bossReply = simulateBossPersonaReply({
+    boss,
+    persona,
+    intent,
+    relationship,
+    payload,
+    chatHistory,
+    previousPlayerTurns,
+    quiet,
+    angry,
+    fun,
+    technical,
+  });
 
   const emotionShift = lines([
-    `${name}当前更像${typeText}里的${quiet ? "低回应状态" : angry ? "上头状态" : fun ? "可互动状态" : "观察状态"}。`,
+    `${name}当前更像${typeText}里的${quiet ? "低回应状态" : angry ? "上头状态" : fun ? "可互动状态" : "观察状态"}，本轮按“${persona.styleLabel}”来模拟。`,
+    intent.label ? `你这一句更像在${intent.label}，所以老板回复要接当前话题，而不是复读固定模板。` : "",
     relationship ? `关系信号：${relationship.label}，陪玩当前设置是“${relationship.mode}”。` : "",
     gameState ? `局势影响：${gameState} 会让他更关注你是否能马上给到有效陪伴。` : "",
   ]);
@@ -2434,6 +2429,7 @@ function generateSimulate(payload) {
     memoryText ? `长期记忆命中：${memoryText}` : "",
     recentMemoryText ? `近期记忆命中：${recentMemoryText}` : "",
     chatHistory.length ? `对话连续性：这是第 ${previousPlayerTurns + 1} 轮陪玩发言，要接住上一轮语气，不要像重新开场。` : "",
+    `老板人格蒸馏：${persona.reading}`,
     playerMessage.includes("吗") ? "你的话里有提问，老板低回应时可能只回短句；可以准备一个不用他多解释的下一句。" : "你的话不算强压，可以继续观察他是否主动接话。",
     relationship ? `关系互动不要只看关键词，要按 relationship_mode 判断推进、轻接还是不接。` : "",
   ]);
@@ -2471,6 +2467,204 @@ function generateSimulate(payload) {
       "只按老板名或游戏名替换模板，不结合长期记忆和当前情绪。",
     ].filter(Boolean),
   };
+}
+
+function inferBossChatPersona(boss = {}, context = {}) {
+  const typeText = splitList(boss.customer_type).join(" ");
+  const memoryText = [
+    boss.preferred_style,
+    boss.disliked_style,
+    boss.favorite_topics,
+    boss.emotion_pattern,
+    boss.memory_profile,
+    boss.memory_interaction_style,
+    boss.memory_relationship,
+    boss.memory_recent_signals,
+    boss.memory_direction,
+    boss.notes,
+    context.scenario,
+    context.emotion,
+    context.chatContext,
+  ].filter(Boolean).join(" ");
+  const technical = includesAny(`${typeText} ${memoryText}`, ["上分", "技术", "节奏", "报点", "阵容"]);
+  const playful = includesAny(`${typeText} ${memoryText}`, ["整活", "搞笑", "接梗", "节目效果", "快乐"]);
+  const confiding = includesAny(`${typeText} ${memoryText}`, ["倾诉", "陪伴", "工作累", "聊天", "温柔"]);
+  const slow = includesAny(`${typeText} ${memoryText}`, ["慢热", "沉默", "安静", "低压", "话少"]);
+  const relationship = includesAny(`${typeText} ${memoryText}`, relationshipSignalKeywords);
+  const styleLabel = technical
+    ? "看重游戏效率的老板"
+    : playful
+      ? "爱接梗的娱乐型老板"
+      : relationship
+        ? "会试探关系感的老板"
+        : confiding
+          ? "需要陪伴感的老板"
+          : slow
+            ? "慢热低回应老板"
+            : "先观察体验的老板";
+  const reading = [
+    technical ? "更在意你有没有用，废话多会减分" : "",
+    playful ? "愿意接轻松梗，但讨厌突然客服感" : "",
+    confiding ? "会看你有没有接住情绪和日常话题" : "",
+    slow ? "回复偏短，需要低压推进" : "",
+    relationship ? "可能会试探亲近感，但要看陪玩关系模式" : "",
+  ].filter(Boolean).join("；") || "先观察你说话自然不自然，再决定要不要多聊";
+  return {
+    styleLabel,
+    reading,
+    technical,
+    playful,
+    confiding,
+    slow,
+    relationship,
+  };
+}
+
+function inferPlayerMessageIntent(message) {
+  const text = String(message || "");
+  const asksPreference = includesAny(text, ["想打", "想玩", "要不要", "还是", "你想", "吗"]);
+  const comfort = includesAny(text, ["没事", "别急", "慢慢", "舒服", "放松", "不急", "别上压力"]);
+  const gamePlan = includesAny(text, ["报点", "信息", "节奏", "开局", "阵容", "技能", "稳", "下一把", "这把"]);
+  const relationship = includesAny(text, relationshipSignalKeywords);
+  const joke = includesAny(text, ["哈哈", "笑死", "整活", "节目效果", "偏心", "专属", "会撩"]);
+  const apology = includesAny(text, ["不好意思", "抱歉", "我的", "失误"]);
+  const label = relationship
+    ? "接关系话题"
+    : gamePlan
+      ? "给游戏安排"
+      : comfort
+        ? "安抚情绪"
+        : joke
+          ? "轻松接梗"
+          : apology
+            ? "修复体验"
+            : asksPreference
+              ? "试探老板偏好"
+              : "自然接话";
+  return {
+    label,
+    asksPreference,
+    comfort,
+    gamePlan,
+    relationship,
+    joke,
+    apology,
+  };
+}
+
+function simulateBossPersonaReply(options) {
+  const {
+    boss,
+    persona,
+    intent,
+    relationship,
+    payload,
+    chatHistory,
+    previousPlayerTurns,
+    quiet,
+    angry,
+    fun,
+    technical,
+  } = options;
+  const memoryText = `${boss.memory_profile || ""} ${boss.memory_interaction_style || ""} ${boss.memory_recent_signals || ""} ${boss.memory_relationship || ""}`;
+  const topic = firstValue(boss.favorite_topics, firstValue(boss.games, "这把游戏"));
+  const alreadySaid = chatHistory.map((message) => message.text).join("\n");
+  const turn = previousPlayerTurns + 1;
+
+  const candidates = [];
+  if (relationship?.hardRisk) {
+    candidates.push("这个别聊了，正常打游戏就行。你要开的话就开下一把。");
+  } else if (relationship?.active || intent.relationship) {
+    candidates.push(...relationshipPersonaReplies(relationship, turn, payload, persona));
+  } else if (intent.apology) {
+    candidates.push("没事，先别一直道歉。你这把把信息给我看住就行，我想先把体验打回来。");
+    candidates.push("嗯，知道了。你后面别太紧张，正常说就行，别突然变得像客服。");
+  } else if (angry) {
+    candidates.push(technical || persona.technical
+      ? "先别安慰了，你多报点位和技能就行。我现在就想把这把打回来。"
+      : "先开吧，刚才那几把有点烦。你别问太多，陪我把节奏找回来。");
+    candidates.push("这把别聊太满，关键点你提醒我一下就行。赢一波再说别的。");
+  } else if (quiet || persona.slow) {
+    candidates.push(intent.asksPreference
+      ? `嗯，先打${firstValue(boss.games, "这把")}吧。我今天话可能不多，你正常报信息就行。`
+      : "嗯，可以。你先按你那个节奏来，我听着就行。");
+    candidates.push("我现在有点懒得说话，你不用一直找话题，能陪着打就行。");
+  } else if (intent.gamePlan || technical || persona.technical) {
+    candidates.push(`行，那你先帮我看${topic}这块。别一直闲聊，关键时候提醒我就行。`);
+    candidates.push("可以，你这样说我比较清楚。先按你说的来，开局别太乱就行。");
+  } else if (intent.joke || fun || persona.playful) {
+    candidates.push(turn > 1
+      ? "你这接得还行，别突然正经起来就行。先开，等会儿有素材你别笑太大声。"
+      : "可以啊，今天先轻松点。你能接梗就行，输了也别一直复盘。");
+    candidates.push("行，那今天主打快乐一点。你别太绷，不然我也不知道怎么接你。");
+  } else if (persona.confiding || includesAny(memoryText, ["工作累", "累", "倾诉"])) {
+    candidates.push("嗯，那就慢慢打吧。我今天不太想上压力，你声音别太紧就行。");
+    candidates.push("可以，先轻松点。我今天主要想有人陪着玩会儿，别一直催我说话。");
+  } else {
+    candidates.push(turn > 1
+      ? "嗯，你这样说还行。先继续吧，我看你后面节奏稳不稳。"
+      : "行，先试两把看看。你正常发挥就行，别太客服感。");
+    candidates.push("可以，先开吧。你别太刻意，自然点我反而舒服点。");
+  }
+
+  const picked = pickFreshReply(candidates, alreadySaid, `${payload.player_message || ""} ${payload.chat_context || ""}`);
+  return personalizeBossReply(picked, boss, persona, intent, payload);
+}
+
+function relationshipPersonaReplies(relationship, turn, payload, persona) {
+  if (!relationship) {
+    return ["你这话说得有点突然。先打吧，打舒服了再说。"];
+  }
+  if (relationship.mode === "可恋爱感营业") {
+    return [
+      turn > 1 ? "你还挺会顺着我说的。行，那今天你先偏心我一点，赢了我再考虑多跟你聊几句。" : "你这么说我会有点开心。那今天你先偏心我一点，别光嘴上说。",
+      "见面这事先不急，我先看你今天陪得怎么样。要是体验好，我再考虑要不要多跟你聊。",
+      persona.playful ? "你这句话有点会撩啊。先开吧，等会儿你要是坑了我可不认这个偏心。" : "",
+    ];
+  }
+  if (relationship.mode === "只轻微暧昧") {
+    return [
+      "行啊，你这回答还挺自然的。先打吧，赢了我再考虑要不要多跟你聊两句。",
+      "你别突然太认真，我就随口逗一下。先把这把打舒服。",
+    ];
+  }
+  if (relationship.mode === "不做恋爱感") {
+    return [
+      "嗯，那就先打游戏吧。我刚才也就是随口说说，你别太严肃。",
+      "可以，先按陪玩的节奏来。别搞得太尴尬就行。",
+    ];
+  }
+  return [
+    "你这回答还行，不算油。先打吧，我看看你今天陪得怎么样。",
+    "我就随口问问，你别一下子说太满。先把游戏打舒服再说。",
+    "行，那先不聊那么远。今天你先正常陪我打，后面看相处感觉。",
+  ];
+}
+
+function pickFreshReply(candidates, previousText, seedText = "") {
+  const cleanCandidates = candidates.filter(Boolean);
+  const fresh = cleanCandidates.filter((reply) => !previousText.includes(reply.slice(0, 10)));
+  const pool = fresh.length ? fresh : cleanCandidates;
+  if (!pool.length) return "嗯，先打吧。";
+  const seed = Array.from(String(seedText || "")).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return pool[seed % pool.length];
+}
+
+function personalizeBossReply(reply, boss, persona, intent, payload) {
+  let text = reply;
+  if (intent.asksPreference && persona.playful && !text.includes("快乐")) {
+    text += " 今天别太严肃，能快乐就先快乐。";
+  }
+  if (intent.comfort && persona.slow && !text.includes("不用一直")) {
+    text += " 你不用一直找话题，报关键的就行。";
+  }
+  if (payload.game_state && intent.gamePlan && !text.includes("开局")) {
+    text += ` ${payload.game_state}这块你多提醒我一下。`;
+  }
+  if (boss.disliked_style && includesAny(boss.disliked_style, ["客服", "客服感"]) && !text.includes("客服")) {
+    text += " 还有别太客服感。";
+  }
+  return text;
 }
 
 function generateReview(payload) {

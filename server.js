@@ -1001,9 +1001,11 @@ function buildSystemPrompt(kind) {
       "avoid 给 4-6 条此刻不能说的话，每条后面用括号写原因。",
     ],
     simulate: [
-      "这是连续对话式老板情景模拟；你要扮演 boss_profile 里的老板，只回复老板这一轮会说出口的话。",
+      "这是连续对话式老板情景模拟，类似角色聊天训练沙盒；你要把 boss_profile 蒸馏成一个稳定的老板人格来对话。",
       "必须参考 payload.scenario、payload.emotion、payload.game_state、payload.player_message、payload.chat_context、payload.chat_history，以及 boss_profile 的长期记忆字段。",
-      "bossReply 只能写一段老板当前回复，不要写多个候选项，不要写陪玩视角建议，不要解释你在扮演谁。",
+      "bossReply 只能写老板当前这一轮会说出口的一段话；不要写多个候选项，不要写陪玩视角建议，不要解释你在扮演谁。",
+      "必须接住 chat_history 的上一轮，不要每轮重新开场；同一段话不要反复出现，老板语气要随玩家输入、情绪和关系进展变化。",
+      "如果老板画像显示慢热、上分、整活、倾诉、关系试探等不同倾向，bossReply 要明显体现对应性格和表达习惯。",
       "emotionShift 写老板听完陪玩这句话后的情绪变化和原因。",
       "readSignal 写这句话暴露出的老板需求、雷点、关系信号或复购信号。",
       "nextSuggestion 写陪玩下一句怎么接，必须给可复制话术。",

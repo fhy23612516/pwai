@@ -244,6 +244,8 @@ test("deployment files expose start script and health check", () => {
   assert.match(server, /getMaxOutputTokens/);
   assert.match(server, /\["prep", "assist", "simulate", "review"\]/);
   assert.match(server, /连续对话式老板情景模拟/);
+  assert.match(server, /蒸馏成一个稳定的老板人格/);
+  assert.match(server, /同一段话不要反复出现/);
   assert.match(server, /payload\.chat_history/);
   assert.match(server, /减少 AI 味/);
   assert.match(server, /不要使用“首先、其次/);
@@ -585,6 +587,53 @@ test("simulator persists chat sessions and sends history to AI", () => {
 
   context.clearSimulationMessages(session.id);
   assert.equal(context.state.simulations.find((item) => item.id === session.id).messages.length, 0);
+});
+
+test("local simulator varies boss replies across chat turns", () => {
+  const context = loadAppContext();
+  context.state.persona.relationship_mode = "未说明，多方案考虑";
+  const bossId = "boss-distilled-chat";
+  context.state.bosses.push({
+    id: bossId,
+    nickname: "蒸馏老板",
+    games: "瓦罗兰特",
+    customer_type: ["倾诉型", "慢热型"],
+    preferred_style: "自然陪伴，别太客服感",
+    disliked_style: "客服感、太油",
+    favorite_topics: "工作累、瓦罗兰特节奏、轻松吐槽",
+    emotion_pattern: "开局话少，聊舒服后会试探关系感",
+    memory_profile: "慢热但会试探亲近感，累的时候想有人陪着玩。",
+    memory_interaction_style: "先低压陪打，接住日常再轻轻推进聊天。",
+    memory_relationship: "说过想谈恋爱，也问过线下见面。",
+    memory_recent_signals: "最近说工作累，不想被一直追问。",
+    memory_direction: "像熟人一样自然接话，不要每轮重新开场。",
+  });
+
+  const first = context.generateSimulate({
+    boss_id: bossId,
+    scenario: "关系互动",
+    emotion: "想聊天",
+    game_state: "刚进房间",
+    player_message: "你刚说想见面，我先陪你打舒服，后面看咱们相处感觉。",
+    chat_context: "老板前面说想谈恋爱。",
+    chat_history: [],
+  });
+  const second = context.generateSimulate({
+    boss_id: bossId,
+    scenario: "关系互动",
+    emotion: "想聊天",
+    game_state: "刚进房间",
+    player_message: "那今天我先多陪你聊两句，你想轻松打还是认真冲？",
+    chat_context: "老板前面说想谈恋爱。",
+    chat_history: [
+      { role: "player", text: "你刚说想见面，我先陪你打舒服，后面看咱们相处感觉。" },
+      { role: "boss", text: first.bossReply },
+    ],
+  });
+
+  assert.notEqual(first.bossReply, second.bossReply);
+  assert.doesNotMatch(`${first.bossReply}\n${second.bossReply}`, /看起来不是那种特别油的。我就是随口问问，先打吧，打舒服了再说。/);
+  assert.match(second.readSignal, /老板人格蒸馏|对话连续性/);
 });
 
 test("AI simulators respond to form attributes instead of keyword swaps", () => {
