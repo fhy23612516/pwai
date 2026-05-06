@@ -1,6 +1,6 @@
 # 部署测试说明
 
-当前项目是静态前端原型，运行时不需要数据库。用户数据存储在浏览器 `localStorage`。
+当前项目使用 Node 静态服务和少量 JSON 文件持久化数据，运行时不需要数据库。账号文件、老板档案和订单数据建议放在 `/etc/pwai`。
 
 老板档案里的业务数据仍保存在浏览器本地，并按登录账号隔离。每个老板可以维护独立记忆卡，包括后续沟通方向、可复用开场、有效话术、风险提醒和下次观察点。订单复盘里的画像建议可以继续写回这些记忆字段。
 
@@ -91,6 +91,7 @@ Nginx 安装脚本默认使用：
 
 ```text
 AUTH_USERS_FILE=/etc/pwai/users.json
+AUTH_DATA_FILE=/etc/pwai/app-data.json
 AUTH_ALLOW_REGISTRATION=true
 AUTH_SESSION_SECRET=一串随机字符
 AUTH_SESSION_TTL_SECONDS=604800
@@ -128,6 +129,21 @@ AUTH_ALLOW_REGISTRATION=false
 ```
 
 用户文件 `AUTH_USERS_FILE` 不要提交到 Git。建议放在 `/etc/pwai/users.json`，和真实 API Key 一样只保存在服务器。
+
+老板档案、订单、话术收藏、AI 设置等应用数据会按账号保存到 `AUTH_DATA_FILE`，默认建议放在 `/etc/pwai/app-data.json`。同一账号换设备登录时，会通过 `/api/state` 读取这份服务器数据；如果服务器上还没有数据，旧版本浏览器里的本地数据会在登录后自动上传一次。
+
+`/api/state` 默认允许最大 1MB 数据，可用下面变量调整：
+
+```text
+APP_STATE_MAX_BYTES=1048576
+```
+
+这两个文件都要纳入服务器备份：
+
+```bash
+sudo cp /etc/pwai/users.json /etc/pwai/users.json.bak
+sudo cp /etc/pwai/app-data.json /etc/pwai/app-data.json.bak
+```
 
 如果你还没配置 HTTPS 域名，只用 `http://服务器IP:端口` 测试，先用：
 

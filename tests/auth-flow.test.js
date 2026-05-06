@@ -7,10 +7,12 @@ const port = 4299;
 const baseUrl = `http://127.0.0.1:${port}`;
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pwai-auth-"));
 const usersFile = path.join(tempDir, "users.json");
+const appDataFile = path.join(tempDir, "app-data.json");
 
 process.env.HOST = "127.0.0.1";
 process.env.PORT = String(port);
 process.env.AUTH_USERS_FILE = usersFile;
+process.env.AUTH_DATA_FILE = appDataFile;
 process.env.AUTH_ALLOW_REGISTRATION = "true";
 process.env.AUTH_SESSION_SECRET = "test-secret";
 process.env.AUTH_SESSION_TTL_SECONDS = "3600";
@@ -144,6 +146,43 @@ async function main() {
     });
     assert.equal(bearerSession.status, 200);
     assert.equal((await bearerSession.json()).authenticated, true);
+
+    const anonymousState = await request("/api/state");
+    assert.equal(anonymousState.status, 401);
+
+    const initialState = await request("/api/state", {
+      headers: { Authorization: `Bearer ${session.token}` },
+    });
+    assert.equal(initialState.status, 200);
+    assert.equal((await initialState.json()).state, null);
+
+    const savedState = {
+      persona: { nickname: "小鹿" },
+      bosses: [{ id: "boss-sync", nickname: "同步老板", games: "瓦罗兰特" }],
+      orders: [],
+      assists: [],
+      favorites: [],
+      settings: { ai_provider: "local", remote_endpoint: "/api/ai" },
+    };
+    const putState = await request("/api/state", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.token}`,
+      },
+      body: JSON.stringify({ state: savedState }),
+    });
+    assert.equal(putState.status, 200);
+    assert.equal((await putState.json()).ok, true);
+
+    const storedState = JSON.parse(fs.readFileSync(appDataFile, "utf8"));
+    assert.equal(storedState.users[session.user.id].state.bosses[0].nickname, "同步老板");
+
+    const syncedState = await request("/api/state", {
+      headers: { Authorization: `Bearer ${session.token}` },
+    });
+    assert.equal(syncedState.status, 200);
+    assert.equal((await syncedState.json()).state.bosses[0].id, "boss-sync");
 
     const logout = await request("/api/logout", {
       method: "POST",

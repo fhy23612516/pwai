@@ -1,6 +1,8 @@
 const STORAGE_KEY = "pwai-state-v1";
 let currentUser = null;
 let activeStorageKey = STORAGE_KEY;
+let remoteStateReady = false;
+let remoteSaveTimer = 0;
 
 const navItems = [
   { id: "home", label: "首页", icon: "H", title: "首页", eyebrow: "工作台" },
@@ -221,9 +223,11 @@ function loadState() {
 
 function saveState() {
   localStorage.setItem(activeStorageKey, JSON.stringify(state));
+  queueRemoteStateSave();
 }
 
 async function initializeSession() {
+  let localState = null;
   try {
     const response = await fetch("/api/session", { headers: { Accept: "application/json" } });
     const data = await response.json();
@@ -235,7 +239,58 @@ async function initializeSession() {
     currentUser = null;
     activeStorageKey = STORAGE_KEY;
   }
-  state = loadState();
+  localState = loadState();
+  state = localState;
+  if (currentUser) {
+    await loadRemoteState(localState);
+  }
+}
+
+async function loadRemoteState(localState) {
+  try {
+    const response = await fetch("/api/state", { headers: { Accept: "application/json" } });
+    if (response.status === 401) {
+      window.location.assign("/login");
+      return;
+    }
+    const data = await response.json();
+    if (response.ok && data.state) {
+      state = normalizeImportedState(data.state);
+      localStorage.setItem(activeStorageKey, JSON.stringify(state));
+    } else if (response.ok && localState) {
+      state = normalizeImportedState(localState);
+      await saveStateRemoteNow();
+    }
+    remoteStateReady = true;
+  } catch {
+    remoteStateReady = false;
+  }
+}
+
+function queueRemoteStateSave() {
+  if (!currentUser || !remoteStateReady) return;
+  window.clearTimeout(remoteSaveTimer);
+  remoteSaveTimer = window.setTimeout(() => {
+    saveStateRemoteNow().catch(() => {
+      remoteStateReady = false;
+      toastMessage("服务器数据同步失败，已先保存在本机");
+    });
+  }, 250);
+}
+
+async function saveStateRemoteNow() {
+  if (!currentUser) return;
+  const response = await fetch("/api/state", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ state }),
+  });
+  if (response.status === 401) {
+    window.location.assign("/login");
+    return;
+  }
+  if (!response.ok) throw new Error("REMOTE_STATE_SAVE_FAILED");
+  remoteStateReady = true;
 }
 
 function id(prefix) {
@@ -1444,7 +1499,7 @@ function renderSettings() {
         <div class="card-header">
           <div>
             <h3 class="card-title">当前账号</h3>
-            <p class="card-subtitle">${escapeHtml(currentUser?.username || "未读取到账号")} · 本地数据按账号隔离保存。</p>
+            <p class="card-subtitle">${escapeHtml(currentUser?.username || "未读取到账号")} · 数据会按账号同步到服务器。</p>
           </div>
         </div>
         <div class="card-body">

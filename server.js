@@ -8,10 +8,12 @@ const root = __dirname;
 const host = process.env.HOST || "0.0.0.0";
 const port = Number(process.env.PORT || 4173);
 const maxBodyBytes = Number(process.env.MAX_BODY_BYTES || 65536);
+const appStateMaxBytes = Number(process.env.APP_STATE_MAX_BYTES || 1048576);
 const aiTimeoutMs = Number(process.env.AI_TIMEOUT_MS || 30000);
 const aiMaxOutputTokens = Number(process.env.OPENAI_MAX_OUTPUT_TOKENS || 1200);
 const defaultBaseUrl = "https://api.openai.com/v1";
 const authUsersFile = process.env.AUTH_USERS_FILE || path.join(process.env.AUTH_DATA_DIR || "/etc/pwai", "users.json");
+const appDataFile = process.env.AUTH_DATA_FILE || path.join(process.env.AUTH_DATA_DIR || "/etc/pwai", "app-data.json");
 const authAllowRegistration = !["0", "false", "no", "off"].includes(String(process.env.AUTH_ALLOW_REGISTRATION ?? "true").toLowerCase());
 const authCookieName = sanitizeCookieName(process.env.AUTH_COOKIE_NAME || "pwai_session");
 const authSessionSecret = process.env.AUTH_SESSION_SECRET || process.env.AUTH_PASSWORD || "pwai-dev-session-secret";
@@ -84,12 +86,12 @@ function sendJson(response, status, data, headers = {}) {
   });
 }
 
-function readJsonBody(request) {
+function readJsonBody(request, limitBytes = maxBodyBytes) {
   return new Promise((resolve, reject) => {
     let body = "";
     request.on("data", (chunk) => {
       body += chunk;
-      if (Buffer.byteLength(body) > maxBodyBytes) {
+      if (Buffer.byteLength(body) > limitBytes) {
         reject(new Error("REQUEST_BODY_TOO_LARGE"));
         request.destroy();
       }
@@ -158,6 +160,11 @@ const server = http.createServer((request, response) => {
 
   if (requestPath === "/api/ai") {
     handleAiRequest(request, response);
+    return;
+  }
+
+  if (requestPath === "/api/state") {
+    handleStateRequest(request, response);
     return;
   }
 
@@ -283,6 +290,50 @@ function writeUsersStore(store) {
   const temporaryPath = `${authUsersFile}.${process.pid}.tmp`;
   fs.writeFileSync(temporaryPath, JSON.stringify({ users: store.users || [] }, null, 2));
   fs.renameSync(temporaryPath, authUsersFile);
+}
+
+function ensureAppDataFile() {
+  const directory = path.dirname(appDataFile);
+  fs.mkdirSync(directory, { recursive: true });
+  if (!fs.existsSync(appDataFile)) {
+    fs.writeFileSync(appDataFile, JSON.stringify({ users: {} }, null, 2));
+  }
+}
+
+function readAppDataStore() {
+  ensureAppDataFile();
+  try {
+    const parsed = JSON.parse(fs.readFileSync(appDataFile, "utf8"));
+    return {
+      users: parsed && typeof parsed.users === "object" && !Array.isArray(parsed.users) ? parsed.users : {},
+    };
+  } catch {
+    return { users: {} };
+  }
+}
+
+function writeAppDataStore(store) {
+  ensureAppDataFile();
+  const temporaryPath = `${appDataFile}.${process.pid}.tmp`;
+  fs.writeFileSync(temporaryPath, JSON.stringify({ users: store.users || {} }, null, 2));
+  fs.renameSync(temporaryPath, appDataFile);
+}
+
+function getUserAppState(userId) {
+  const record = readAppDataStore().users[String(userId || "")];
+  return record?.state && typeof record.state === "object" && !Array.isArray(record.state) ? record.state : null;
+}
+
+function setUserAppState(userId, state) {
+  const store = readAppDataStore();
+  const key = String(userId || "");
+  const now = new Date().toISOString();
+  store.users[key] = {
+    state,
+    updated_at: now,
+  };
+  writeAppDataStore(store);
+  return store.users[key];
 }
 
 function normalizeUsername(username) {
@@ -438,7 +489,7 @@ async function handleLoginRequest(request, response) {
 
   let body;
   try {
-    body = await readJsonBody(request);
+    body = await readJsonBody(request, appStateMaxBytes);
   } catch (error) {
     const status = error.message === "REQUEST_BODY_TOO_LARGE" ? 413 : 400;
     sendJson(response, status, { ok: false, error: error.message });
@@ -532,6 +583,49 @@ function handleSessionRequest(request, response) {
     registration_enabled: authAllowRegistration,
     authenticated: Boolean(session),
     user: session ? { id: session.user_id, username: session.username } : null,
+  });
+}
+
+async function handleStateRequest(request, response) {
+  const session = getSessionFromRequest(request);
+  if (!session) {
+    sendAuthRequired(request, response);
+    return;
+  }
+
+  if (request.method === "GET") {
+    const record = readAppDataStore().users[session.user_id];
+    sendJson(response, 200, {
+      ok: true,
+      state: record?.state || null,
+      updated_at: record?.updated_at || null,
+    });
+    return;
+  }
+
+  if (request.method !== "PUT") {
+    sendJson(response, 405, { ok: false, error: "METHOD_NOT_ALLOWED" });
+    return;
+  }
+
+  let body;
+  try {
+    body = await readJsonBody(request);
+  } catch (error) {
+    const status = error.message === "REQUEST_BODY_TOO_LARGE" ? 413 : 400;
+    sendJson(response, status, { ok: false, error: error.message });
+    return;
+  }
+
+  if (!body.state || typeof body.state !== "object" || Array.isArray(body.state)) {
+    sendJson(response, 400, { ok: false, error: "INVALID_STATE", message: "state must be an object." });
+    return;
+  }
+
+  const record = setUserAppState(session.user_id, body.state);
+  sendJson(response, 200, {
+    ok: true,
+    updated_at: record.updated_at,
   });
 }
 

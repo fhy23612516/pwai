@@ -16,6 +16,17 @@ git checkout v0.12.0
 
 生产环境建议优先用 `git revert <commit>` 回滚问题提交，不建议直接 `git reset --hard`。
 
+## v0.18.0 - 账号数据服务端同步
+
+提交：`v0.18.0` tag 指向的 `feat: sync user app state on server`
+
+- 新增 `/api/state`，按登录账号在服务器保存老板档案、订单、求助、收藏和设置
+- 新增 `AUTH_DATA_FILE`，默认建议 `/etc/pwai/app-data.json`
+- 前端登录后优先加载服务器数据，保存时同步上传；`localStorage` 只作为本机缓存和离线兜底
+- 旧版本浏览器已有本地数据时，服务器还没有数据会自动上传一次完成迁移
+- 部署文档增加 `app-data.json` 备份说明
+- 自动测试覆盖跨设备同步接口、未登录保护和文档配置
+
 ## v0.17.0 - 老板情景模拟聊天
 
 提交：`v0.17.0` tag 指向的 `feat: add boss chat simulator`
