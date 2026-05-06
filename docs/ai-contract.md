@@ -202,7 +202,7 @@ OPENAI_MODEL_REVIEW=deepseek-reasoner
 }
 ```
 
-情景模拟是 ChatGPT 式连续对话训练。`bossReply` 只写老板当前这一轮回复，不要写多个候选项；`emotionShift`、`readSignal`、`nextSuggestion` 给陪玩复盘用。生成时必须把老板档案蒸馏成稳定人格，根据老板长期画像、互动偏好、关系互动记忆、近期订单 / 求助片段和 `chat_history` 接住上一轮，不要像重新开场，也不要反复输出同一句模板。
+情景模拟是 ChatGPT 式连续对话训练。`bossReply` 只写老板当前这一轮回复，不要写多个候选项；优先像即时通讯里的真人短消息，允许短句、停顿和轻微口癖，不要写成客服话术、完整建议文或心理分析。`emotionShift`、`readSignal`、`nextSuggestion` 给陪玩复盘用，前端默认折叠展示。生成时必须把老板档案蒸馏成稳定人格，根据老板长期画像、互动偏好、关系互动记忆、近期订单 / 求助片段和 `chat_history` 接住上一轮，不要像重新开场，也不要反复输出同一句模板。
 
 ## 订单复盘 `review`
 

@@ -1004,8 +1004,10 @@ function buildSystemPrompt(kind) {
       "这是连续对话式老板情景模拟，类似角色聊天训练沙盒；你要把 boss_profile 蒸馏成一个稳定的老板人格来对话。",
       "必须参考 payload.scenario、payload.emotion、payload.game_state、payload.player_message、payload.chat_context、payload.chat_history，以及 boss_profile 的长期记忆字段。",
       "bossReply 只能写老板当前这一轮会说出口的一段话；不要写多个候选项，不要写陪玩视角建议，不要解释你在扮演谁。",
+      "bossReply 要像即时通讯里的真人短回复：1-2 句，允许短句、停顿、轻微口癖和不完整表达；不要写成完整建议文、客服话术或心理分析。",
       "必须接住 chat_history 的上一轮，不要每轮重新开场；同一段话不要反复出现，老板语气要随玩家输入、情绪和关系进展变化。",
       "如果老板画像显示慢热、上分、整活、倾诉、关系试探等不同倾向，bossReply 要明显体现对应性格和表达习惯。",
+      "避免 bossReply 每次都用“嗯、行、可以、那就、先”开头；不要反复出现“正常发挥、别太客服感、打舒服了再说”。",
       "emotionShift 写老板听完陪玩这句话后的情绪变化和原因。",
       "readSignal 写这句话暴露出的老板需求、雷点、关系信号或复购信号。",
       "nextSuggestion 写陪玩下一句怎么接，必须给可复制话术。",
@@ -1025,7 +1027,7 @@ function buildSystemPrompt(kind) {
 
   return [
     "你是陪玩副驾 AI 的服务端生成器。",
-    "输出对象是给陪玩本人看的备忘和话术，不是让 AI 直接冒充陪玩和老板聊天。",
+    "除 simulate 场景里的 bossReply 需要扮演老板外，其他输出对象都是给陪玩本人看的备忘和话术。",
     "只输出 JSON，不要输出 Markdown、解释、代码块或多余文本。",
     "输出必须符合当前场景字段，字段名使用英文。",
     "内容要比短模板更具体，但仍然方便复制；字符串字段可以用换行组织成几条短句。",

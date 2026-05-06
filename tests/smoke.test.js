@@ -246,6 +246,8 @@ test("deployment files expose start script and health check", () => {
   assert.match(server, /连续对话式老板情景模拟/);
   assert.match(server, /蒸馏成一个稳定的老板人格/);
   assert.match(server, /同一段话不要反复出现/);
+  assert.match(server, /即时通讯里的真人短回复/);
+  assert.match(server, /不要写成完整建议文、客服话术或心理分析/);
   assert.match(server, /payload\.chat_history/);
   assert.match(server, /减少 AI 味/);
   assert.match(server, /不要使用“首先、其次/);
@@ -582,6 +584,8 @@ test("simulator persists chat sessions and sends history to AI", () => {
   const html = context.renderSimulationThread(saved);
   assert.match(html, /chat-message player/);
   assert.match(html, /chat-message boss/);
+  assert.match(html, /<details class="chat-analysis">/);
+  assert.match(html, /本轮提示/);
   assert.match(html, /情绪变化/);
   assert.match(html, /下一句建议/);
 
@@ -633,6 +637,8 @@ test("local simulator varies boss replies across chat turns", () => {
 
   assert.notEqual(first.bossReply, second.bossReply);
   assert.doesNotMatch(`${first.bossReply}\n${second.bossReply}`, /看起来不是那种特别油的。我就是随口问问，先打吧，打舒服了再说。/);
+  assert.doesNotMatch(`${first.bossReply}\n${second.bossReply}`, /正常发挥|客服感|完整建议文/);
+  assert.ok([first.bossReply, second.bossReply].some((reply) => reply.length <= 32));
   assert.match(second.readSignal, /老板人格蒸馏|对话连续性/);
 });
 

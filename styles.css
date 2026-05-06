@@ -591,6 +591,17 @@ button:disabled {
   background: rgba(18, 19, 26, 0.66);
 }
 
+.chat-analysis summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.chat-analysis[open] summary {
+  margin-bottom: 4px;
+}
+
 .chat-analysis div {
   display: grid;
   gap: 4px;
