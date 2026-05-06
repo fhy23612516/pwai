@@ -36,6 +36,13 @@ const outputSchemas = {
     technical: "string",
     avoid: "array",
   },
+  simulate: {
+    bossReply: "string",
+    emotionShift: "string",
+    readSignal: "string",
+    nextSuggestion: "string",
+    avoid: "array",
+  },
   review: {
     summary: "string",
     profileUpdate: "object",
@@ -898,6 +905,15 @@ function buildSystemPrompt(kind) {
       "reply 写 2-3 条可直接发的话术，用换行分隔，第一条最稳。",
       "gentle、lively、technical 分别给不同风格的可复制话术，不要只改语气词。",
       "avoid 给 4-6 条此刻不能说的话，每条后面用括号写原因。",
+    ],
+    simulate: [
+      "这是老板情景模拟，不是直接替陪玩回复老板；你要扮演 boss_profile 里的老板，模拟他可能怎么回。",
+      "必须参考 payload.scenario、payload.emotion、payload.game_state、payload.player_message、payload.chat_context，以及 boss_profile 的长期记忆字段。",
+      "bossReply 写 2-3 条老板可能真实说出口的回复，用老板的客户类型、情绪模式、关系互动偏好决定语气；不要客服腔。",
+      "emotionShift 写老板听完陪玩这句话后的情绪变化和原因。",
+      "readSignal 写这句话暴露出的老板需求、雷点、关系信号或复购信号。",
+      "nextSuggestion 写陪玩下一句怎么接，必须给可复制话术。",
+      "avoid 给 4-6 条本轮训练里不建议继续说的话，每条后面用括号写原因。",
     ],
     review: [
       "必须逐项参考 payload.duration、payload.result、payload.boss_emotion、payload.had_silence、payload.renewed、payload.complaint、payload.important_notes、payload.good_points、payload.improvements；不能只写通用复盘。",

@@ -16,6 +16,16 @@ git checkout v0.12.0
 
 生产环境建议优先用 `git revert <commit>` 回滚问题提交，不建议直接 `git reset --hard`。
 
+## v0.17.0 - 老板情景模拟聊天
+
+提交：`v0.17.0` tag 指向的 `feat: add boss chat simulator`
+
+- 新增情景模拟入口，可选择老板后输入陪玩话术，模拟老板可能回复
+- 新增 AI 场景 `simulate`，输出 `bossReply`、`emotionShift`、`readSignal`、`nextSuggestion`、`avoid`
+- 模拟会参考老板长期画像、互动偏好、关系互动记忆、近期订单和求助片段
+- 支持开局破冰、连输安抚、沉默、想聊天、关系互动、续单维护等训练场景
+- 服务端 prompt、AI 契约和自动测试同步覆盖新场景
+
 ## v0.16.0 - 关系互动分流和长期记忆
 
 提交：`v0.16.0` tag 指向的 `feat: route relationship memory by persona mode`

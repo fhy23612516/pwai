@@ -107,7 +107,7 @@ function loadAppContext() {
   vm.createContext(context);
   vm.runInContext(
     `${code}
-globalThis.__testApi = { state, aiKinds, aiOutputSchemas, generateAiOutput, generateAiOutputAsync, normalizeAiOutput, generatePrep, generateAssist, generateReview, renderOutput, normalizeImportedState, mergeBossProfileSuggestion, filterOrders, bossMemoryText, bossRecentMemoryText, normalizeBoss, relationshipInteractionSignal, formatProfileUpdate };`,
+globalThis.__testApi = { state, aiKinds, aiOutputSchemas, generateAiOutput, generateAiOutputAsync, normalizeAiOutput, generatePrep, generateAssist, generateSimulate, generateReview, renderOutput, normalizeImportedState, mergeBossProfileSuggestion, filterOrders, bossMemoryText, bossRecentMemoryText, normalizeBoss, relationshipInteractionSignal, formatProfileUpdate };`,
     context,
     { filename: appPath },
   );
@@ -149,7 +149,7 @@ test("index.html loads the app assets", () => {
 
 test("navigation covers the MVP workflow", () => {
   const app = read(appPath);
-  for (const route of ["home", "bosses", "persona", "prep", "assist", "review", "orders", "library", "settings"]) {
+  for (const route of ["home", "bosses", "persona", "prep", "assist", "simulate", "review", "orders", "library", "settings"]) {
     assert.match(app, new RegExp(`id: "${route}"`), `${route} route should be configured`);
   }
   for (const handler of [
@@ -160,6 +160,7 @@ test("navigation covers the MVP workflow", () => {
     "renderPersona",
     "renderPrep",
     "renderAssist",
+    "renderSimulator",
     "renderReview",
     "renderOrders",
     "renderReminders",
@@ -179,6 +180,10 @@ test("AI contract documents required output schemas", () => {
     "judgment",
     "currentStrategy",
     "reply",
+    "bossReply",
+    "emotionShift",
+    "readSignal",
+    "nextSuggestion",
     "summary",
     "profileUpdate",
     "nextContact",
@@ -199,6 +204,8 @@ test("deployment files expose start script and health check", () => {
   assert.match(packageJson.scripts.test, /tests\/auth-flow\.test\.js/);
   assert.match(server, /\/healthz/);
   assert.match(server, /\/api\/ai/);
+  assert.match(server, /bossReply/);
+  assert.match(server, /老板情景模拟/);
   assert.match(server, /\/login/);
   assert.match(server, /\/api\/login/);
   assert.match(server, /\/api\/register/);
@@ -395,6 +402,21 @@ test("AI simulators return the fields expected by the renderer", () => {
   assert.ok(Array.isArray(assist.avoid));
   assert.match(`${assist.judgment}\n${assist.currentStrategy}\n${assist.note}`, /记忆|观察/);
 
+  const simulation = context.generateSimulate({
+    boss_id: bossId,
+    scenario: "老板沉默",
+    emotion: "沉默",
+    game_state: "刚进房间，准备第一把",
+    player_message: "老板今天先轻松热两把，不急着上压力。",
+    chat_context: "老板刚进房间，还没怎么说话。",
+  });
+  assert.equal(typeof simulation.bossReply, "string");
+  assert.equal(typeof simulation.emotionShift, "string");
+  assert.equal(typeof simulation.readSignal, "string");
+  assert.equal(typeof simulation.nextSuggestion, "string");
+  assert.ok(Array.isArray(simulation.avoid));
+  assert.match(`${simulation.bossReply}\n${simulation.readSignal}\n${simulation.nextSuggestion}`, /先打|记忆|下一句|舒服的节奏/);
+
   const review = context.generateReview({
     boss_id: bossId,
     game: "瓦罗兰特",
@@ -454,8 +476,60 @@ test("AI contract documents relationship interaction routing and memory", () => 
   const changelog = read(path.join(root, "CHANGELOG.md"));
 
   for (const pattern of [/关系互动信号/, /relationship_mode/, /不默认禁止/, /硬风险/, /memory_profile/, /memory_relationship/, /轻量 Hermes 式记忆/]) {
-    assert.match(`${readme}\n${contract}\n${changelog}`, pattern);
+  assert.match(`${readme}\n${contract}\n${changelog}`, pattern);
   }
+});
+
+test("AI simulator chat uses boss persona and relationship memory", () => {
+  const context = loadAppContext();
+  context.state.persona.relationship_mode = "可恋爱感营业";
+  const bossId = "boss-simulate-test";
+  context.state.bosses.push({
+    id: bossId,
+    nickname: "模拟老板",
+    games: "瓦罗兰特",
+    customer_type: ["倾诉型"],
+    preferred_style: "温柔、带一点专属感",
+    disliked_style: "客服感",
+    favorite_topics: "恋爱感、游戏节奏",
+    avoid_topics: "太严肃",
+    emotion_pattern: "赢了之后会主动聊天",
+    memory_profile: "喜欢轻松陪伴，也会试探关系感。",
+    memory_interaction_style: "吃专属感，喜欢自然暧昧但讨厌油。",
+    memory_relationship: "提过想谈恋爱，也问过能不能见面。",
+    memory_recent_signals: "上次赢了之后明显更愿意聊天。",
+    memory_direction: "关系互动可以按可恋爱感营业轻接。",
+    memory_openers: "",
+    memory_effective_lines: "",
+    memory_risks: "",
+    memory_next_probe: "观察他是认真推进关系还是玩笑试探。",
+  });
+  context.state.orders.unshift({
+    id: "order-simulate-test",
+    boss_id: bossId,
+    game: "瓦罗兰特",
+    duration: "2 小时",
+    result: "后半段赢了两把",
+    boss_emotion: "开心",
+    important_notes: "老板说想见面。",
+    review_summary: "关系互动要轻接，不要油。",
+    created_at: "2026-05-05",
+  });
+
+  const output = context.generateSimulate({
+    boss_id: bossId,
+    scenario: "关系互动",
+    emotion: "开心",
+    game_state: "刚赢一把，气氛比较轻松",
+    player_message: "你说想见面我有点意外，那今天我先偏心你一点。",
+    chat_context: "老板刚才说想谈恋爱，还问以后能不能线下见。",
+  });
+
+  assert.match(output.bossReply, /偏心|见面|陪得怎么样/);
+  assert.match(output.emotionShift, /关系信号|可恋爱感营业/);
+  assert.match(output.readSignal, /长期记忆命中|近期记忆命中|relationship_mode/);
+  assert.match(output.nextSuggestion, /可恋爱感营业|游戏信息|关系话题/);
+  assert.ok(output.avoid.some((item) => /营业尺度|现实关系|硬风险/.test(item)));
 });
 
 test("AI simulators respond to form attributes instead of keyword swaps", () => {
@@ -682,6 +756,18 @@ test("AI adapter normalizes outputs for all supported scenarios", () => {
   assert.equal(assist.kind, "assist");
   assert.ok(Array.isArray(assist.avoid));
 
+  const simulation = context.generateAiOutput(context.aiKinds.simulate, {
+    boss_id: bossId,
+    scenario: "开局破冰",
+    emotion: "沉默",
+    player_message: "老板今天先轻松热两把。",
+  });
+  for (const field of context.aiOutputSchemas.simulate) {
+    assert.ok(field in simulation, `simulate should include ${field}`);
+  }
+  assert.equal(simulation.kind, "simulate");
+  assert.ok(Array.isArray(simulation.avoid));
+
   const review = context.generateAiOutput(context.aiKinds.review, {
     boss_id: bossId,
     game: "瓦罗兰特",
@@ -718,12 +804,20 @@ test("rendered AI output contains copyable cards", () => {
     serviceStrategy: "先降低聊天压力。",
     opening: "老板今天还打瓦吗？",
     topics: ["上次名场面", "今天想上分还是快乐"],
+    bossReply: "嗯，先打吧。",
+    emotionShift: "老板仍然偏低回应。",
+    readSignal: "当前接话短。",
+    nextSuggestion: "先多报信息。",
     avoid: ["不要催单"],
   });
 
   assert.match(html, /本单服务策略/);
   assert.match(html, /开场话术/);
   assert.match(html, /推荐聊天话题/);
+  assert.match(html, /模拟老板回复/);
+  assert.match(html, /情绪变化/);
+  assert.match(html, /信号解读/);
+  assert.match(html, /下一句建议/);
   assert.match(html, /不建议说的话/);
   assert.match(html, /data-copy=/);
   assert.match(html, /data-favorite-text=/);

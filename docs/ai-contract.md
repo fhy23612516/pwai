@@ -175,6 +175,30 @@ OPENAI_MODEL_REVIEW=deepseek-reasoner
 }
 ```
 
+## 情景模拟 `simulate`
+
+输入来源：
+
+- `player_profile`
+- `boss_profile`
+- `scenario`
+- `player_message`
+- `chat_context`
+
+返回结构：
+
+```json
+{
+  "bossReply": "模拟老板回复",
+  "emotionShift": "老板情绪变化",
+  "readSignal": "信号解读",
+  "nextSuggestion": "陪玩下一句建议",
+  "avoid": ["不建议继续说的话 1", "不建议继续说的话 2"]
+}
+```
+
+情景模拟要根据老板长期画像、互动偏好、关系互动记忆和近期订单 / 求助片段，模拟老板可能怎么接话。输出对象仍然是陪玩本人，不是自动代聊。
+
 ## 订单复盘 `review`
 
 输入来源：

@@ -8,6 +8,7 @@ const navItems = [
   { id: "persona", label: "人设", icon: "P", title: "陪玩人设", eyebrow: "个人风格" },
   { id: "prep", label: "开单", icon: "S", title: "开单准备", eyebrow: "订单开始前" },
   { id: "assist", label: "求助", icon: "A", title: "实时辅助", eyebrow: "订单进行中" },
+  { id: "simulate", label: "模拟", icon: "M", title: "情景模拟", eyebrow: "聊天训练" },
   { id: "review", label: "复盘", icon: "R", title: "订单复盘", eyebrow: "订单结束后" },
   { id: "orders", label: "订单", icon: "O", title: "历史订单", eyebrow: "服务复盘" },
   { id: "library", label: "话术", icon: "L", title: "话术库", eyebrow: "常用收藏" },
@@ -66,18 +67,21 @@ const relationshipModeOptions = [
 const aiKinds = {
   prep: "prep",
   assist: "assist",
+  simulate: "simulate",
   review: "review",
 };
 
 const aiOutputSchemas = {
   prep: ["serviceStrategy", "opening", "topics", "warning", "avoid"],
   assist: ["judgment", "currentStrategy", "reply", "gentle", "lively", "technical", "avoid"],
+  simulate: ["bossReply", "emotionShift", "readSignal", "nextSuggestion", "avoid"],
   review: ["summary", "profileUpdate", "nextOpening", "nextContact", "repurchase", "performance"],
 };
 
 const localAiProvider = {
   prep: generatePrep,
   assist: generateAssist,
+  simulate: generateSimulate,
   review: generateReview,
 };
 
@@ -1107,6 +1111,84 @@ function renderAssist(defaultBossId = "") {
   });
 }
 
+function renderSimulator(defaultBossId = "") {
+  if (!state.bosses.length) {
+    appView.innerHTML = emptyState("先新建老板档案", "情景模拟需要选择一个老板档案。");
+    return;
+  }
+
+  const bossId = defaultBossId || selectedBossId || state.bosses[0].id;
+  selectedBossId = bossId;
+
+  appView.innerHTML = `
+    <div class="grid two">
+      <form class="card" id="simulate-form">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">老板情景模拟</h3>
+            <p class="card-subtitle">根据老板档案、长期记忆和当前场景，模拟老板可能怎么回。</p>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="form-grid">
+            <label class="field full">
+              <span>选择老板</span>
+              ${bossSelect("boss_id", bossId)}
+            </label>
+            ${selectField("模拟场景", "scenario", ["开局破冰", "连输后安抚", "老板沉默", "老板想聊天", "关系互动", "续单维护", "自定义"], "开局破冰")}
+            ${selectField("老板当前情绪", "emotion", emotionOptions, "沉默")}
+            ${inputField("当前游戏局势", "game_state", "刚进房间，准备开始第一把")}
+            ${textareaField("你准备说的话", "player_message", "老板今天还打瓦吗？先轻松热两把，不急着上压力。", true)}
+            ${textareaField("上一轮上下文", "chat_context", "还没正式开打，老板刚进房间。")}
+          </div>
+          <div class="button-row" style="margin-top: 16px;">
+            <button class="primary-button" type="submit">模拟老板回复</button>
+            <button class="ghost-button" type="button" data-fill-simulate>填入关系互动示例</button>
+          </div>
+        </div>
+      </form>
+
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">模拟结果</h3>
+            <p class="card-subtitle">用于练习下一句，不会自动写入老板档案。</p>
+          </div>
+        </div>
+        <div class="card-body">
+          <div id="simulate-output" class="ai-output">
+            ${emptyState("等待模拟", "输入你准备说的话后，模拟老板可能的回复和信号。")}
+          </div>
+        </div>
+      </section>
+    </div>
+  `;
+
+  const form = appView.querySelector("#simulate-form");
+  form.boss_id.addEventListener("change", (event) => {
+    selectedBossId = event.target.value;
+  });
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const payload = Object.fromEntries(new FormData(form).entries());
+    const button = event.submitter;
+    setBusy(button, true, "模拟中");
+    try {
+      appView.querySelector("#simulate-output").innerHTML = renderOutput(await generateAiOutputAsync(aiKinds.simulate, payload));
+      bindCopyButtons();
+    } finally {
+      setBusy(button, false);
+    }
+  });
+  appView.querySelector("[data-fill-simulate]").addEventListener("click", () => {
+    form.scenario.value = "关系互动";
+    form.emotion.value = "开心";
+    form.game_state.value = "刚赢一把，气氛比较轻松";
+    form.player_message.value = "你刚才说想见面，我有点意外诶。今天先陪你把游戏打舒服，后面看咱们相处节奏。";
+    form.chat_context.value = "老板刚才开玩笑说想谈恋爱，还问以后能不能线下见。";
+  });
+}
+
 function renderReview(defaultBossId = "") {
   if (!state.bosses.length) {
     appView.innerHTML = emptyState("先新建老板档案", "订单复盘需要选择一个老板档案。");
@@ -2046,6 +2128,116 @@ function generateAssist(payload) {
   };
 }
 
+function generateSimulate(payload) {
+  const boss = getBoss(payload.boss_id) || {};
+  const name = bossLabel(boss);
+  const scenario = String(payload.scenario || "自定义");
+  const emotion = String(payload.emotion || "");
+  const playerMessage = String(payload.player_message || "");
+  const chatContext = String(payload.chat_context || "");
+  const gameState = String(payload.game_state || "");
+  const memoryText = bossMemoryText(boss);
+  const recentMemoryText = bossRecentMemoryText(boss.id, 2);
+  const relationship = relationshipInteractionSignal(boss, `${scenario} ${emotion} ${playerMessage} ${chatContext}`);
+  const typeText = splitList(boss.customer_type).join("、") || "未记录类型";
+  const quiet = includesAny(`${scenario} ${emotion} ${chatContext}`, ["沉默", "不想说话", "疲惫"]);
+  const angry = includesAny(`${scenario} ${emotion} ${chatContext}`, ["暴躁", "烦", "输", "连输"]);
+  const fun = includesAny(`${scenario} ${emotion} ${chatContext}`, ["开心", "整活", "想聊天", "关系互动"]);
+  const technical = String(boss.customer_type).includes("上分") || includesAny(boss.preferred_style, ["技术", "节奏", "报点"]);
+
+  const bossReply = relationship?.hardRisk
+    ? lines([
+        "这个就算了吧，正常玩游戏就行。",
+        "别聊这个了，开下一把？",
+      ])
+    : relationship
+      ? relationship.mode === "可恋爱感营业"
+        ? lines([
+            "你这话说得还挺会哄人的，那今天你先偏心我一点。",
+            "见面这事先不急，我先看看你今天陪得怎么样。",
+          ])
+        : relationship.mode === "只轻微暧昧"
+          ? lines([
+              "行啊，你这回答还挺自然的。",
+              "先打吧，赢了我再考虑要不要多跟你聊两句。",
+            ])
+          : relationship.mode === "不做恋爱感"
+            ? lines([
+                "嗯，那就先打游戏吧。",
+                "我刚才也就是随口说说，你别太严肃。",
+              ])
+            : lines([
+                "你这回答还行，看起来不是那种特别油的。",
+                "我就是随口问问，先打吧，打舒服了再说。",
+              ])
+      : angry
+        ? lines([
+            "先开吧，刚才那几把打得有点烦。",
+            technical ? "你多报点有用的，别一直安慰。" : "别问太多，先陪我把节奏打回来。",
+          ])
+        : quiet
+          ? lines([
+              "嗯，先打吧。",
+              "我今天话可能不多，你正常报信息就行。",
+            ])
+          : fun
+            ? lines([
+                "可以啊，今天先轻松点。",
+                "你别太紧张，能接梗就行，输了也别一直复盘。",
+              ])
+            : lines([
+                "行，先试两把看看。",
+                "你正常发挥就行，别太客服感。",
+              ]);
+
+  const emotionShift = lines([
+    `${name}当前更像${typeText}里的${quiet ? "低回应状态" : angry ? "上头状态" : fun ? "可互动状态" : "观察状态"}。`,
+    relationship ? `关系信号：${relationship.label}，陪玩当前设置是“${relationship.mode}”。` : "",
+    gameState ? `局势影响：${gameState} 会让他更关注你是否能马上给到有效陪伴。` : "",
+  ]);
+
+  const readSignal = lines([
+    memoryText ? `长期记忆命中：${memoryText}` : "",
+    recentMemoryText ? `近期记忆命中：${recentMemoryText}` : "",
+    playerMessage.includes("吗") ? "你的话里有提问，老板低回应时可能只回短句；可以准备一个不用他多解释的下一句。" : "你的话不算强压，可以继续观察他是否主动接话。",
+    relationship ? `关系互动不要只看关键词，要按 relationship_mode 判断推进、轻接还是不接。` : "",
+  ]);
+
+  const nextSuggestion = relationship
+    ? lines([
+        relationship.hardRisk ? "下一句直接收回到正常游戏，不继续接硬风险话题。" : `下一句按“${relationship.mode}”走：${relationship.reply.split("\n")[0]}`,
+        "再补一句游戏信息或当前安排，避免只围着关系话题打转。",
+      ])
+    : angry
+      ? lines([
+          "下一句先承认局势，不讲大道理。",
+          gameState ? `可说：刚才${gameState}，这把我先多报关键点，咱们先把开局稳住。` : "可说：刚才那几把先过去，这把我多报关键点，咱们先稳开局。",
+        ])
+      : quiet
+        ? lines([
+            "下一句减少问题，给他空间。",
+            "可说：你今天话少也没事，我先多看信息，咱们按舒服的节奏来。",
+          ])
+        : lines([
+            "下一句可以轻接他的状态，再给一个具体玩法安排。",
+            "可说：那先轻松热两把，我看你今天更想快乐局还是认真冲。",
+          ]);
+
+  return {
+    bossReply,
+    emotionShift,
+    readSignal,
+    nextSuggestion,
+    avoid: [
+      relationship?.hardRisk ? "继续接色情、违法、胁迫、未成年或隐私勒索话题。（硬风险）" : "",
+      relationship && !relationship.hardRisk ? "没确认自己营业尺度就直接答应现实关系推进。（容易和需求不一致）" : "",
+      angry ? "刚输就长篇复盘他的问题。（容易顶情绪）" : "",
+      quiet ? "连续追问为什么不说话。（会把沉默变成压力）" : "",
+      "只按老板名或游戏名替换模板，不结合长期记忆和当前情绪。",
+    ].filter(Boolean),
+  };
+}
+
 function generateReview(payload) {
   const boss = getBoss(payload.boss_id) || {};
   const name = bossLabel(boss);
@@ -2192,6 +2384,10 @@ function renderOutput(output) {
     ["温柔版本", output.gentle],
     ["活泼版本", output.lively],
     ["技术版本", output.technical],
+    ["模拟老板回复", output.bossReply],
+    ["情绪变化", output.emotionShift],
+    ["信号解读", output.readSignal],
+    ["下一句建议", output.nextSuggestion],
     ["本次订单总结", output.summary],
     ["老板画像更新建议", formatProfileUpdate(output.profileUpdate)],
     ["下次开场话术", output.nextOpening],
@@ -2344,6 +2540,7 @@ function render() {
   else if (base === "persona") renderPersona();
   else if (base === "prep") renderPrep(action);
   else if (base === "assist") renderAssist(action);
+  else if (base === "simulate") renderSimulator(action);
   else if (base === "review") renderReview(action);
   else if (base === "orders") renderOrders();
   else if (base === "reminders") renderReminders();
