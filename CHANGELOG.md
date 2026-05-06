@@ -16,6 +16,17 @@ git checkout v0.12.0
 
 生产环境建议优先用 `git revert <commit>` 回滚问题提交，不建议直接 `git reset --hard`。
 
+## v0.19.0 - 连续对话式情景模拟
+
+提交：`v0.19.0` tag 指向的 `feat: add conversational boss simulator`
+
+- 情景模拟从单次结果卡片改为 ChatGPT 式网页对话，陪玩发送一句，系统按老板人设回复一句
+- 每个老板保留独立模拟会话，模拟消息写入账号数据并通过 `/api/state` 同步到服务器
+- AI 请求新增 `chat_history`、`boss_memory`、`recent_memory`，生成时会接住上一轮，不再像重新开场
+- 服务端 `/api/ai` 白名单补上 `simulate`，远程模型可以处理情景模拟
+- 部署模板新增 `OPENAI_MODEL_SIMULATE`，支持给模拟场景单独指定模型
+- 自动测试覆盖模拟会话持久化、历史对话 payload、服务端 simulate 白名单和文档配置
+
 ## v0.18.0 - 账号数据服务端同步
 
 提交：`v0.18.0` tag 指向的 `feat: sync user app state on server`

@@ -182,14 +182,19 @@ OPENAI_MODEL_REVIEW=deepseek-reasoner
 - `player_profile`
 - `boss_profile`
 - `scenario`
+- `emotion`
+- `game_state`
 - `player_message`
 - `chat_context`
+- `chat_history`
+- `boss_memory`
+- `recent_memory`
 
 返回结构：
 
 ```json
 {
-  "bossReply": "模拟老板回复",
+  "bossReply": "老板这一轮会说出口的一段回复",
   "emotionShift": "老板情绪变化",
   "readSignal": "信号解读",
   "nextSuggestion": "陪玩下一句建议",
@@ -197,7 +202,7 @@ OPENAI_MODEL_REVIEW=deepseek-reasoner
 }
 ```
 
-情景模拟要根据老板长期画像、互动偏好、关系互动记忆和近期订单 / 求助片段，模拟老板可能怎么接话。输出对象仍然是陪玩本人，不是自动代聊。
+情景模拟是 ChatGPT 式连续对话训练。`bossReply` 只写老板当前这一轮回复，不要写多个候选项；`emotionShift`、`readSignal`、`nextSuggestion` 给陪玩复盘用。生成时必须根据老板长期画像、互动偏好、关系互动记忆、近期订单 / 求助片段和 `chat_history` 接住上一轮，不要像重新开场。
 
 ## 订单复盘 `review`
 

@@ -793,7 +793,7 @@ async function handleAiRequest(request, response) {
   }
 
   const kind = payload.kind;
-  if (!["prep", "assist", "review"].includes(kind)) {
+  if (!["prep", "assist", "simulate", "review"].includes(kind)) {
     sendJson(response, 400, { ok: false, error: "INVALID_AI_KIND" });
     return;
   }
@@ -1001,9 +1001,9 @@ function buildSystemPrompt(kind) {
       "avoid 给 4-6 条此刻不能说的话，每条后面用括号写原因。",
     ],
     simulate: [
-      "这是老板情景模拟，不是直接替陪玩回复老板；你要扮演 boss_profile 里的老板，模拟他可能怎么回。",
-      "必须参考 payload.scenario、payload.emotion、payload.game_state、payload.player_message、payload.chat_context，以及 boss_profile 的长期记忆字段。",
-      "bossReply 写 2-3 条老板可能真实说出口的回复，用老板的客户类型、情绪模式、关系互动偏好决定语气；不要客服腔。",
+      "这是连续对话式老板情景模拟；你要扮演 boss_profile 里的老板，只回复老板这一轮会说出口的话。",
+      "必须参考 payload.scenario、payload.emotion、payload.game_state、payload.player_message、payload.chat_context、payload.chat_history，以及 boss_profile 的长期记忆字段。",
+      "bossReply 只能写一段老板当前回复，不要写多个候选项，不要写陪玩视角建议，不要解释你在扮演谁。",
       "emotionShift 写老板听完陪玩这句话后的情绪变化和原因。",
       "readSignal 写这句话暴露出的老板需求、雷点、关系信号或复购信号。",
       "nextSuggestion 写陪玩下一句怎么接，必须给可复制话术。",

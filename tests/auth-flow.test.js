@@ -161,6 +161,7 @@ async function main() {
       bosses: [{ id: "boss-sync", nickname: "同步老板", games: "瓦罗兰特" }],
       orders: [],
       assists: [],
+      simulations: [{ id: "simulation-sync", boss_id: "boss-sync", messages: [{ role: "player", text: "老板今天先轻松热两把。" }] }],
       favorites: [],
       settings: { ai_provider: "local", remote_endpoint: "/api/ai" },
     };
@@ -182,7 +183,9 @@ async function main() {
       headers: { Authorization: `Bearer ${session.token}` },
     });
     assert.equal(syncedState.status, 200);
-    assert.equal((await syncedState.json()).state.bosses[0].id, "boss-sync");
+    const syncedJson = await syncedState.json();
+    assert.equal(syncedJson.state.bosses[0].id, "boss-sync");
+    assert.equal(syncedJson.state.simulations[0].messages[0].text, "老板今天先轻松热两把。");
 
     const logout = await request("/api/logout", {
       method: "POST",

@@ -193,6 +193,7 @@ const defaultState = {
     },
   ],
   assists: [],
+  simulations: [],
   favorites: [],
   settings: {
     ai_provider: "local",
@@ -204,6 +205,7 @@ let state = structuredClone(defaultState);
 let currentBossFilter = "全部老板";
 let currentOrderFilter = "全部订单";
 let selectedBossId = null;
+let selectedSimulationId = null;
 
 const appView = document.querySelector("#app-view");
 const nav = document.querySelector("#app-nav");
@@ -516,6 +518,9 @@ function normalizeAiOutput(kind, output) {
     normalized.avoid = splitList(normalized.avoid);
   }
   if (kind === aiKinds.assist) {
+    normalized.avoid = splitList(normalized.avoid);
+  }
+  if (kind === aiKinds.simulate) {
     normalized.avoid = splitList(normalized.avoid);
   }
   if (kind === aiKinds.review) {
@@ -917,6 +922,7 @@ function deleteBoss(bossId) {
   state.bosses = state.bosses.filter((item) => item.id !== bossId);
   state.orders = state.orders.filter((order) => order.boss_id !== bossId);
   state.assists = state.assists.filter((assist) => assist.boss_id !== bossId);
+  state.simulations = state.simulations.filter((session) => session.boss_id !== bossId);
   saveState();
   toastMessage("老板档案已删除");
   setRoute("bosses");
@@ -1174,14 +1180,16 @@ function renderSimulator(defaultBossId = "") {
 
   const bossId = defaultBossId || selectedBossId || state.bosses[0].id;
   selectedBossId = bossId;
+  const session = getOrCreateSimulationSession(bossId);
+  const boss = getBoss(bossId);
 
   appView.innerHTML = `
     <div class="grid two">
       <form class="card" id="simulate-form">
         <div class="card-header">
           <div>
-            <h3 class="card-title">老板情景模拟</h3>
-            <p class="card-subtitle">根据老板档案、长期记忆和当前场景，模拟老板可能怎么回。</p>
+            <h3 class="card-title">模拟设定</h3>
+            <p class="card-subtitle">选择老板和场景后，像聊天一样练习临场接话。</p>
           </div>
         </div>
         <div class="card-body">
@@ -1190,30 +1198,39 @@ function renderSimulator(defaultBossId = "") {
               <span>选择老板</span>
               ${bossSelect("boss_id", bossId)}
             </label>
-            ${selectField("模拟场景", "scenario", ["开局破冰", "连输后安抚", "老板沉默", "老板想聊天", "关系互动", "续单维护", "自定义"], "开局破冰")}
-            ${selectField("老板当前情绪", "emotion", emotionOptions, "沉默")}
-            ${inputField("当前游戏局势", "game_state", "刚进房间，准备开始第一把")}
-            ${textareaField("你准备说的话", "player_message", "老板今天还打瓦吗？先轻松热两把，不急着上压力。", true)}
-            ${textareaField("上一轮上下文", "chat_context", "还没正式开打，老板刚进房间。")}
+            ${selectField("模拟场景", "scenario", ["开局破冰", "连输后安抚", "老板沉默", "老板想聊天", "关系互动", "续单维护", "自定义"], session.scenario || "开局破冰")}
+            ${selectField("老板当前情绪", "emotion", emotionOptions, session.emotion || "沉默")}
+            ${inputField("当前游戏局势", "game_state", session.game_state || "刚进房间，准备开始第一把")}
+            ${textareaField("补充背景", "chat_context", session.chat_context || "还没正式开打，老板刚进房间。")}
           </div>
           <div class="button-row" style="margin-top: 16px;">
-            <button class="primary-button" type="submit">模拟老板回复</button>
+            <button class="ghost-button" type="button" data-save-simulate-setting>保存设定</button>
             <button class="ghost-button" type="button" data-fill-simulate>填入关系互动示例</button>
+            <button class="danger-button" type="button" data-clear-simulate>清空对话</button>
+          </div>
+          <div class="memory-strip">
+            <strong>${escapeHtml(bossLabel(boss))}</strong>
+            <span>${escapeHtml(splitList(boss.customer_type).join("、") || "未记录类型")}</span>
+            <span>${escapeHtml(boss.memory_relationship || boss.memory_interaction_style || boss.preferred_style || "暂无长期记忆")}</span>
           </div>
         </div>
       </form>
 
-      <section class="card">
+      <section class="card chat-card">
         <div class="card-header">
           <div>
-            <h3 class="card-title">模拟结果</h3>
-            <p class="card-subtitle">用于练习下一句，不会自动写入老板档案。</p>
+            <h3 class="card-title">对话训练</h3>
+            <p class="card-subtitle">系统扮演老板回复，并给你下一句接法。</p>
           </div>
         </div>
         <div class="card-body">
-          <div id="simulate-output" class="ai-output">
-            ${emptyState("等待模拟", "输入你准备说的话后，模拟老板可能的回复和信号。")}
+          <div id="simulate-thread" class="chat-thread">
+            ${renderSimulationThread(session)}
           </div>
+          <form id="simulate-chat-form" class="chat-composer">
+            <textarea name="player_message" rows="3" placeholder="输入你准备对老板说的话..." required></textarea>
+            <button class="primary-button" type="submit">发送并模拟</button>
+          </form>
         </div>
       </section>
     </div>
@@ -1222,14 +1239,31 @@ function renderSimulator(defaultBossId = "") {
   const form = appView.querySelector("#simulate-form");
   form.boss_id.addEventListener("change", (event) => {
     selectedBossId = event.target.value;
+    selectedSimulationId = null;
+    renderSimulator(selectedBossId);
   });
-  form.addEventListener("submit", async (event) => {
+  form.querySelector("[data-save-simulate-setting]").addEventListener("click", () => {
+    updateSimulationSettings(session.id, Object.fromEntries(new FormData(form).entries()));
+    toastMessage("模拟设定已保存");
+    renderSimulator(form.boss_id.value);
+  });
+  appView.querySelector("#simulate-chat-form").addEventListener("submit", async (event) => {
     event.preventDefault();
-    const payload = Object.fromEntries(new FormData(form).entries());
+    const chatForm = event.currentTarget;
+    const playerMessage = chatForm.player_message.value.trim();
+    if (!playerMessage) return;
     const button = event.submitter;
     setBusy(button, true, "模拟中");
     try {
-      appView.querySelector("#simulate-output").innerHTML = renderOutput(await generateAiOutputAsync(aiKinds.simulate, payload));
+      const settings = Object.fromEntries(new FormData(form).entries());
+      updateSimulationSettings(session.id, settings);
+      appendSimulationMessage(session.id, "player", playerMessage);
+      appView.querySelector("#simulate-thread").innerHTML = renderSimulationThread(getSimulationSession(session.id));
+      const payload = buildSimulationPayload(getSimulationSession(session.id), playerMessage);
+      const output = await generateAiOutputAsync(aiKinds.simulate, payload);
+      appendSimulationMessage(session.id, "boss", output.bossReply, output);
+      chatForm.reset();
+      appView.querySelector("#simulate-thread").innerHTML = renderSimulationThread(getSimulationSession(session.id));
       bindCopyButtons();
     } finally {
       setBusy(button, false);
@@ -1239,9 +1273,174 @@ function renderSimulator(defaultBossId = "") {
     form.scenario.value = "关系互动";
     form.emotion.value = "开心";
     form.game_state.value = "刚赢一把，气氛比较轻松";
-    form.player_message.value = "你刚才说想见面，我有点意外诶。今天先陪你把游戏打舒服，后面看咱们相处节奏。";
     form.chat_context.value = "老板刚才开玩笑说想谈恋爱，还问以后能不能线下见。";
   });
+  appView.querySelector("[data-clear-simulate]").addEventListener("click", () => {
+    if (!window.confirm("确认清空这个老板的模拟对话？")) return;
+    clearSimulationMessages(session.id);
+    renderSimulator(form.boss_id.value);
+  });
+  bindCopyButtons();
+}
+
+function getOrCreateSimulationSession(bossId) {
+  if (!Array.isArray(state.simulations)) state.simulations = [];
+  const existing = selectedSimulationId
+    ? state.simulations.find((session) => session.id === selectedSimulationId && session.boss_id === bossId)
+    : state.simulations.find((session) => session.boss_id === bossId);
+  if (existing) {
+    selectedSimulationId = existing.id;
+    return normalizeSimulationSession(existing);
+  }
+  const session = normalizeSimulationSession({
+    id: id("simulation"),
+    boss_id: bossId,
+    scenario: "开局破冰",
+    emotion: "沉默",
+    game_state: "刚进房间，准备开始第一把",
+    chat_context: "还没正式开打，老板刚进房间。",
+    messages: [],
+    created_at: today(),
+    updated_at: today(),
+  });
+  state.simulations.unshift(session);
+  selectedSimulationId = session.id;
+  return session;
+}
+
+function getSimulationSession(sessionId) {
+  return normalizeSimulationSession(state.simulations.find((session) => session.id === sessionId));
+}
+
+function normalizeSimulationSession(session = {}) {
+  return {
+    id: session.id || id("simulation"),
+    boss_id: session.boss_id || "",
+    scenario: session.scenario || "开局破冰",
+    emotion: session.emotion || "沉默",
+    game_state: session.game_state || "",
+    chat_context: session.chat_context || "",
+    messages: Array.isArray(session.messages) ? session.messages.map(normalizeSimulationMessage) : [],
+    created_at: session.created_at || today(),
+    updated_at: session.updated_at || session.created_at || today(),
+  };
+}
+
+function normalizeSimulationMessage(message = {}) {
+  return {
+    id: message.id || id("simmsg"),
+    role: message.role === "boss" ? "boss" : "player",
+    text: String(message.text || ""),
+    output: message.output && typeof message.output === "object" ? message.output : null,
+    created_at: message.created_at || today(),
+  };
+}
+
+function updateSimulationSettings(sessionId, settings) {
+  state.simulations = state.simulations.map((session) =>
+    session.id === sessionId
+      ? normalizeSimulationSession({
+          ...session,
+          boss_id: settings.boss_id || session.boss_id,
+          scenario: settings.scenario || session.scenario,
+          emotion: settings.emotion || session.emotion,
+          game_state: settings.game_state || session.game_state,
+          chat_context: settings.chat_context || session.chat_context,
+          updated_at: today(),
+        })
+      : session,
+  );
+  saveState();
+}
+
+function appendSimulationMessage(sessionId, role, text, output = null) {
+  state.simulations = state.simulations.map((session) =>
+    session.id === sessionId
+      ? normalizeSimulationSession({
+          ...session,
+          messages: [
+            ...session.messages,
+            {
+              id: id("simmsg"),
+              role,
+              text,
+              output,
+              created_at: today(),
+            },
+          ],
+          updated_at: today(),
+        })
+      : session,
+  );
+  saveState();
+}
+
+function clearSimulationMessages(sessionId) {
+  state.simulations = state.simulations.map((session) =>
+    session.id === sessionId
+      ? normalizeSimulationSession({
+          ...session,
+          messages: [],
+          updated_at: today(),
+        })
+      : session,
+  );
+  saveState();
+}
+
+function buildSimulationPayload(session, playerMessage) {
+  const boss = getBoss(session.boss_id) || {};
+  const history = session.messages.slice();
+  const lastMessage = history[history.length - 1];
+  if (lastMessage?.role === "player" && lastMessage.text === playerMessage) {
+    history.pop();
+  }
+  const recentMessages = history.slice(-12).map((message) => ({
+    role: message.role,
+    text: message.text,
+  }));
+  return {
+    boss_id: session.boss_id,
+    scenario: session.scenario,
+    emotion: session.emotion,
+    game_state: session.game_state,
+    player_message: playerMessage,
+    chat_context: session.chat_context,
+    chat_history: recentMessages,
+    boss_memory: bossMemoryText(boss),
+    recent_memory: bossRecentMemoryText(session.boss_id, 3),
+  };
+}
+
+function renderSimulationThread(session) {
+  if (!session?.messages?.length) {
+    return emptyState("开始模拟对话", "输入一句你会对老板说的话，系统会按老板人设和记忆接话。");
+  }
+  return session.messages.map(renderSimulationMessage).join("");
+}
+
+function renderSimulationMessage(message) {
+  const label = message.role === "boss" ? "老板" : "你";
+  const detail = message.output
+    ? `
+      <div class="chat-analysis">
+        ${message.output.emotionShift ? `<div><strong>情绪变化</strong><span>${escapeHtml(message.output.emotionShift)}</span></div>` : ""}
+        ${message.output.readSignal ? `<div><strong>信号解读</strong><span>${escapeHtml(message.output.readSignal)}</span></div>` : ""}
+        ${message.output.nextSuggestion ? `<div><strong>下一句建议</strong><span>${escapeHtml(message.output.nextSuggestion)}</span></div>` : ""}
+        ${message.output.avoid?.length ? `<div><strong>避免</strong><span>${escapeHtml(message.output.avoid.join("\n"))}</span></div>` : ""}
+      </div>
+    `
+    : "";
+  return `
+    <article class="chat-message ${message.role === "boss" ? "boss" : "player"}">
+      <div class="chat-bubble">
+        <div class="chat-speaker">${escapeHtml(label)}</div>
+        <p>${escapeHtml(message.text)}</p>
+        ${message.role === "boss" ? `<button class="copy-button" type="button" data-copy="${escapeHtml(message.text)}">复制</button>` : ""}
+      </div>
+      ${detail}
+    </article>
+  `;
 }
 
 function renderReview(defaultBossId = "") {
@@ -1633,6 +1832,7 @@ function normalizeImportedState(input) {
   if (!Array.isArray(next.bosses)) throw new Error("bosses 格式错误");
   if (!Array.isArray(next.orders)) throw new Error("orders 格式错误");
   if (!Array.isArray(next.assists)) throw new Error("assists 格式错误");
+  if (!Array.isArray(next.simulations)) next.simulations = [];
   if (!Array.isArray(next.favorites)) next.favorites = [];
   if (!next.settings || typeof next.settings !== "object") next.settings = structuredClone(defaultState.settings);
   if (!next.persona || typeof next.persona !== "object") {
@@ -1643,6 +1843,7 @@ function normalizeImportedState(input) {
     ...next.persona,
   };
   next.bosses = next.bosses.map(normalizeBoss);
+  next.simulations = next.simulations.map(normalizeSimulationSession);
   return next;
 }
 
@@ -2191,6 +2392,9 @@ function generateSimulate(payload) {
   const playerMessage = String(payload.player_message || "");
   const chatContext = String(payload.chat_context || "");
   const gameState = String(payload.game_state || "");
+  const chatHistory = Array.isArray(payload.chat_history) ? payload.chat_history : [];
+  const lastBossMessage = [...chatHistory].reverse().find((message) => message.role === "boss")?.text || "";
+  const previousPlayerTurns = chatHistory.filter((message) => message.role === "player").length;
   const memoryText = bossMemoryText(boss);
   const recentMemoryText = bossRecentMemoryText(boss.id, 2);
   const relationship = relationshipInteractionSignal(boss, `${scenario} ${emotion} ${playerMessage} ${chatContext}`);
@@ -2201,49 +2405,24 @@ function generateSimulate(payload) {
   const technical = String(boss.customer_type).includes("上分") || includesAny(boss.preferred_style, ["技术", "节奏", "报点"]);
 
   const bossReply = relationship?.hardRisk
-    ? lines([
-        "这个就算了吧，正常玩游戏就行。",
-        "别聊这个了，开下一把？",
-      ])
+    ? "这个就算了吧，正常玩游戏就行。别聊这个了，开下一把？"
     : relationship
       ? relationship.mode === "可恋爱感营业"
-        ? lines([
-            "你这话说得还挺会哄人的，那今天你先偏心我一点。",
-            "见面这事先不急，我先看看你今天陪得怎么样。",
-          ])
+        ? (previousPlayerTurns > 1
+            ? "你这话说得还挺会哄人的。行，那今天你先偏心我一点，等会儿要是赢了我再考虑多跟你聊两句。"
+            : "你这话说得还挺会哄人的。见面这事先不急，我先看看你今天陪得怎么样。")
         : relationship.mode === "只轻微暧昧"
-          ? lines([
-              "行啊，你这回答还挺自然的。",
-              "先打吧，赢了我再考虑要不要多跟你聊两句。",
-            ])
+          ? "行啊，你这回答还挺自然的。先打吧，赢了我再考虑要不要多跟你聊两句。"
           : relationship.mode === "不做恋爱感"
-            ? lines([
-                "嗯，那就先打游戏吧。",
-                "我刚才也就是随口说说，你别太严肃。",
-              ])
-            : lines([
-                "你这回答还行，看起来不是那种特别油的。",
-                "我就是随口问问，先打吧，打舒服了再说。",
-              ])
+            ? "嗯，那就先打游戏吧。我刚才也就是随口说说，你别太严肃。"
+            : "你这回答还行，看起来不是那种特别油的。我就是随口问问，先打吧，打舒服了再说。"
       : angry
-        ? lines([
-            "先开吧，刚才那几把打得有点烦。",
-            technical ? "你多报点有用的，别一直安慰。" : "别问太多，先陪我把节奏打回来。",
-          ])
+        ? `先开吧，刚才那几把打得有点烦。${technical ? "你多报点有用的，别一直安慰。" : "别问太多，先陪我把节奏打回来。"}`
         : quiet
-          ? lines([
-              "嗯，先打吧。",
-              "我今天话可能不多，你正常报信息就行。",
-            ])
+          ? "嗯，先打吧。我今天话可能不多，你正常报信息就行。"
           : fun
-            ? lines([
-                "可以啊，今天先轻松点。",
-                "你别太紧张，能接梗就行，输了也别一直复盘。",
-              ])
-            : lines([
-                "行，先试两把看看。",
-                "你正常发挥就行，别太客服感。",
-              ]);
+            ? `可以啊，今天先轻松点。${lastBossMessage ? "你接得还行，别突然又变得太正式。" : "你别太紧张，能接梗就行，输了也别一直复盘。"}`
+            : "行，先试两把看看。你正常发挥就行，别太客服感。";
 
   const emotionShift = lines([
     `${name}当前更像${typeText}里的${quiet ? "低回应状态" : angry ? "上头状态" : fun ? "可互动状态" : "观察状态"}。`,
@@ -2254,6 +2433,7 @@ function generateSimulate(payload) {
   const readSignal = lines([
     memoryText ? `长期记忆命中：${memoryText}` : "",
     recentMemoryText ? `近期记忆命中：${recentMemoryText}` : "",
+    chatHistory.length ? `对话连续性：这是第 ${previousPlayerTurns + 1} 轮陪玩发言，要接住上一轮语气，不要像重新开场。` : "",
     playerMessage.includes("吗") ? "你的话里有提问，老板低回应时可能只回短句；可以准备一个不用他多解释的下一句。" : "你的话不算强压，可以继续观察他是否主动接话。",
     relationship ? `关系互动不要只看关键词，要按 relationship_mode 判断推进、轻接还是不接。` : "",
   ]);

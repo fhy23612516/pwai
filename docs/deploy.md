@@ -2,7 +2,7 @@
 
 当前项目使用 Node 静态服务和少量 JSON 文件持久化数据，运行时不需要数据库。账号文件、老板档案和订单数据建议放在 `/etc/pwai`。
 
-老板档案里的业务数据仍保存在浏览器本地，并按登录账号隔离。每个老板可以维护独立记忆卡，包括后续沟通方向、可复用开场、有效话术、风险提醒和下次观察点。订单复盘里的画像建议可以继续写回这些记忆字段。
+登录后的业务数据会按账号保存到服务器 `/api/state`，浏览器本地只作为缓存。每个老板可以维护独立记忆卡，包括后续沟通方向、可复用开场、有效话术、风险提醒和下次观察点。订单复盘里的画像建议可以继续写回这些记忆字段。情景模拟对话也会进入账号数据，换设备登录后仍能看到同一老板的训练历史。
 
 ## 启动
 
@@ -165,6 +165,7 @@ OPENAI_BASE_URL=https://你的中转站域名/v1
 OPENAI_MODEL=中转站支持的模型名
 OPENAI_MODEL_PREP=
 OPENAI_MODEL_ASSIST=
+OPENAI_MODEL_SIMULATE=
 OPENAI_MODEL_REVIEW=
 OPENAI_MAX_OUTPUT_TOKENS=1200
 AI_API_MODE=chat
@@ -209,6 +210,7 @@ OPENAI_BASE_URL=https://sub.zlove.tech
 OPENAI_MODEL=gpt-5.4
 OPENAI_MODEL_PREP=
 OPENAI_MODEL_ASSIST=
+OPENAI_MODEL_SIMULATE=
 OPENAI_MODEL_REVIEW=
 AI_API_MODE=responses
 OPENAI_REASONING_EFFORT=xhigh
@@ -240,6 +242,7 @@ OPENAI_RESPONSE_FORMAT=text
 ```text
 OPENAI_MODEL_PREP=deepseek-chat
 OPENAI_MODEL_ASSIST=deepseek-chat
+OPENAI_MODEL_SIMULATE=deepseek-chat
 OPENAI_MODEL_REVIEW=deepseek-reasoner
 ```
 
@@ -253,6 +256,7 @@ OPENAI_MODEL
 
 - 开单准备：`deepseek-chat`
 - 实时辅助：`deepseek-chat`
+- 情景模拟：`deepseek-chat`
 - 订单复盘：`deepseek-reasoner`
 
 ## 调整 AI 输出长度和口吻

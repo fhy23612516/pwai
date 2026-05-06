@@ -521,6 +521,129 @@ button:disabled {
   font-size: 12px;
 }
 
+.chat-card .card-body {
+  display: grid;
+  gap: 14px;
+}
+
+.chat-thread {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-height: 430px;
+  max-height: 64vh;
+  overflow: auto;
+  padding: 4px 4px 8px;
+}
+
+.chat-message {
+  display: grid;
+  gap: 8px;
+  max-width: 88%;
+}
+
+.chat-message.player {
+  justify-self: end;
+}
+
+.chat-message.boss {
+  justify-self: start;
+}
+
+.chat-bubble {
+  display: grid;
+  gap: 8px;
+  padding: 12px 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.chat-message.player .chat-bubble {
+  border-color: rgba(74, 168, 255, 0.34);
+  background: rgba(74, 168, 255, 0.16);
+}
+
+.chat-message.boss .chat-bubble {
+  border-color: rgba(49, 208, 170, 0.24);
+  background: rgba(49, 208, 170, 0.1);
+}
+
+.chat-speaker {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.chat-bubble p {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.chat-analysis {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(18, 19, 26, 0.66);
+}
+
+.chat-analysis div {
+  display: grid;
+  gap: 4px;
+}
+
+.chat-analysis strong {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.chat-analysis span {
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.chat-composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.chat-composer textarea {
+  min-height: 76px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--text);
+  outline: none;
+  padding: 11px 12px;
+  line-height: 1.55;
+}
+
+.memory-strip {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.memory-strip strong {
+  color: var(--text);
+}
+
 .mini-actions {
   display: inline-flex;
   flex-wrap: wrap;
@@ -682,5 +805,18 @@ button:disabled {
 
   .button-row > button {
     width: 100%;
+  }
+
+  .chat-thread {
+    min-height: 360px;
+    max-height: 58vh;
+  }
+
+  .chat-message {
+    max-width: 100%;
+  }
+
+  .chat-composer {
+    grid-template-columns: 1fr;
   }
 }

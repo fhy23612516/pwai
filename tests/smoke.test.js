@@ -107,7 +107,7 @@ function loadAppContext() {
   vm.createContext(context);
   vm.runInContext(
     `${code}
-globalThis.__testApi = { state, aiKinds, aiOutputSchemas, generateAiOutput, generateAiOutputAsync, normalizeAiOutput, generatePrep, generateAssist, generateSimulate, generateReview, renderOutput, normalizeImportedState, mergeBossProfileSuggestion, filterOrders, bossMemoryText, bossRecentMemoryText, normalizeBoss, relationshipInteractionSignal, formatProfileUpdate };`,
+globalThis.__testApi = { state, aiKinds, aiOutputSchemas, generateAiOutput, generateAiOutputAsync, normalizeAiOutput, generatePrep, generateAssist, generateSimulate, generateReview, renderOutput, normalizeImportedState, mergeBossProfileSuggestion, filterOrders, bossMemoryText, bossRecentMemoryText, normalizeBoss, relationshipInteractionSignal, formatProfileUpdate, getOrCreateSimulationSession, appendSimulationMessage, clearSimulationMessages, buildSimulationPayload, renderSimulationThread };`,
     context,
     { filename: appPath },
   );
@@ -242,6 +242,9 @@ test("deployment files expose start script and health check", () => {
   assert.match(server, /json_object/);
   assert.match(server, /OPENAI_MAX_OUTPUT_TOKENS/);
   assert.match(server, /getMaxOutputTokens/);
+  assert.match(server, /\["prep", "assist", "simulate", "review"\]/);
+  assert.match(server, /连续对话式老板情景模拟/);
+  assert.match(server, /payload\.chat_history/);
   assert.match(server, /减少 AI 味/);
   assert.match(server, /不要使用“首先、其次/);
   assert.match(server, /场景细化要求/);
@@ -356,10 +359,12 @@ test("AI provider settings are part of local state", () => {
     bosses: [],
     orders: [],
     assists: [],
+    simulations: [],
     favorites: [],
   });
   assert.equal(normalized.settings.ai_provider, "local");
   assert.equal(normalized.persona.relationship_mode, "未说明，多方案考虑");
+  assert.ok(Array.isArray(normalized.simulations));
 });
 
 test("local data model includes sample persona, bosses, orders, and assists", () => {
@@ -378,6 +383,7 @@ test("local data model includes sample persona, bosses, orders, and assists", ()
   assert.match(app, /relationship_mode/);
   assert.match(app, /orders:\s*\[/);
   assert.match(app, /assists:\s*\[/);
+  assert.match(app, /simulations:\s*\[/);
   assert.match(app, /favorites:\s*\[/);
   assert.match(app, /阿辰/);
   assert.match(app, /南风/);
@@ -545,6 +551,40 @@ test("AI simulator chat uses boss persona and relationship memory", () => {
   assert.match(output.readSignal, /长期记忆命中|近期记忆命中|relationship_mode/);
   assert.match(output.nextSuggestion, /可恋爱感营业|游戏信息|关系话题/);
   assert.ok(output.avoid.some((item) => /营业尺度|现实关系|硬风险/.test(item)));
+});
+
+test("simulator persists chat sessions and sends history to AI", () => {
+  const context = loadAppContext();
+  const bossId = context.state.bosses[0].id;
+  const session = context.getOrCreateSimulationSession(bossId);
+  context.appendSimulationMessage(session.id, "player", "老板今天先轻松热两把。");
+  context.appendSimulationMessage(session.id, "boss", "嗯，先打吧。", {
+    bossReply: "嗯，先打吧。",
+    emotionShift: "低回应。",
+    readSignal: "不想多解释。",
+    nextSuggestion: "少问，多报点。",
+    avoid: ["别追问"],
+  });
+  context.appendSimulationMessage(session.id, "player", "那我先多报信息，你舒服点打。");
+
+  const saved = context.state.simulations.find((item) => item.id === session.id);
+  assert.equal(saved.boss_id, bossId);
+  assert.equal(saved.messages.length, 3);
+
+  const payload = context.buildSimulationPayload(saved, "那我先多报信息，你舒服点打。");
+  assert.equal(payload.chat_history.length, 2);
+  assert.equal(payload.chat_history[0].role, "player");
+  assert.equal(payload.chat_history[1].role, "boss");
+  assert.match(payload.boss_memory, /长期画像|互动偏好|沟通方向/);
+
+  const html = context.renderSimulationThread(saved);
+  assert.match(html, /chat-message player/);
+  assert.match(html, /chat-message boss/);
+  assert.match(html, /情绪变化/);
+  assert.match(html, /下一句建议/);
+
+  context.clearSimulationMessages(session.id);
+  assert.equal(context.state.simulations.find((item) => item.id === session.id).messages.length, 0);
 });
 
 test("AI simulators respond to form attributes instead of keyword swaps", () => {
@@ -845,15 +885,24 @@ test("imported state normalization keeps required collections", () => {
     bosses: [],
     orders: [],
     assists: [],
+    simulations: [],
   });
 
   assert.equal(normalized.persona.nickname, "测试");
   assert.ok(Array.isArray(normalized.favorites));
+  assert.ok(Array.isArray(normalized.simulations));
   const migrated = context.normalizeImportedState({
     persona: { nickname: "测试" },
     bosses: [{ id: "boss-old", nickname: "旧老板", games: "瓦罗兰特" }],
     orders: [],
     assists: [],
+    simulations: [
+      {
+        id: "simulation-old",
+        boss_id: "boss-old",
+        messages: [{ role: "boss", text: "嗯，先打吧。" }],
+      },
+    ],
     favorites: [],
   });
   assert.equal(migrated.bosses[0].memory_direction, "");
@@ -861,6 +910,8 @@ test("imported state normalization keeps required collections", () => {
   assert.equal(migrated.bosses[0].memory_interaction_style, "");
   assert.equal(migrated.bosses[0].memory_relationship, "");
   assert.equal(migrated.bosses[0].memory_recent_signals, "");
+  assert.equal(migrated.simulations[0].scenario, "开局破冰");
+  assert.equal(migrated.simulations[0].messages[0].role, "boss");
   assert.throws(() => context.normalizeImportedState({ bosses: {} }), /bosses 格式错误/);
 });
 
