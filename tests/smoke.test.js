@@ -248,6 +248,9 @@ test("deployment files expose start script and health check", () => {
   assert.match(server, /同一段话不要反复出现/);
   assert.match(server, /即时通讯里的真人短回复/);
   assert.match(server, /不要写成完整建议文、客服话术或心理分析/);
+  assert.match(server, /小抄/);
+  assert.match(server, /不要写成心理分析报告/);
+  assert.match(server, /不要用“信号解读、关系推进/);
   assert.match(server, /payload\.chat_history/);
   assert.match(server, /减少 AI 味/);
   assert.match(server, /不要使用“首先、其次/);
@@ -440,7 +443,7 @@ test("AI simulators return the fields expected by the renderer", () => {
   assert.equal(typeof simulation.readSignal, "string");
   assert.equal(typeof simulation.nextSuggestion, "string");
   assert.ok(Array.isArray(simulation.avoid));
-  assert.match(`${simulation.bossReply}\n${simulation.readSignal}\n${simulation.nextSuggestion}`, /先打|记忆|下一句|舒服的节奏/);
+  assert.match(`${simulation.bossReply}\n${simulation.readSignal}\n${simulation.nextSuggestion}`, /先打|记着|可以说|舒服/);
 
   const review = context.generateReview({
     boss_id: bossId,
@@ -551,10 +554,10 @@ test("AI simulator chat uses boss persona and relationship memory", () => {
   });
 
   assert.match(output.bossReply, /偏心|见面|陪得怎么样/);
-  assert.match(output.emotionShift, /关系信号|可恋爱感营业/);
-  assert.match(output.readSignal, /长期记忆命中|近期记忆命中|relationship_mode/);
-  assert.match(output.nextSuggestion, /可恋爱感营业|游戏信息|关系话题/);
-  assert.ok(output.avoid.some((item) => /营业尺度|现实关系|硬风险/.test(item)));
+  assert.match(output.emotionShift, /亲近感|偏心|见面|营业尺度/);
+  assert.match(output.readSignal, /记着|最近|这个老板|老习惯/);
+  assert.match(output.nextSuggestion, /可以说|游戏|关系/);
+  assert.ok(output.avoid.some((item) => /别一口答应|越界|恋爱/.test(item)));
 });
 
 test("simulator persists chat sessions and sends history to AI", () => {
@@ -585,9 +588,9 @@ test("simulator persists chat sessions and sends history to AI", () => {
   assert.match(html, /chat-message player/);
   assert.match(html, /chat-message boss/);
   assert.match(html, /<details class="chat-analysis">/);
-  assert.match(html, /本轮提示/);
-  assert.match(html, /情绪变化/);
-  assert.match(html, /下一句建议/);
+  assert.match(html, /小抄/);
+  assert.match(html, /他现在/);
+  assert.match(html, /你接/);
 
   context.clearSimulationMessages(session.id);
   assert.equal(context.state.simulations.find((item) => item.id === session.id).messages.length, 0);
@@ -639,7 +642,7 @@ test("local simulator varies boss replies across chat turns", () => {
   assert.doesNotMatch(`${first.bossReply}\n${second.bossReply}`, /看起来不是那种特别油的。我就是随口问问，先打吧，打舒服了再说。/);
   assert.doesNotMatch(`${first.bossReply}\n${second.bossReply}`, /正常发挥|客服感|完整建议文/);
   assert.ok([first.bossReply, second.bossReply].some((reply) => reply.length <= 32));
-  assert.match(second.readSignal, /老板人格蒸馏|对话连续性/);
+  assert.match(second.readSignal, /这个老板大概|第 2 轮|别突然换成客服口吻/);
 });
 
 test("AI simulators respond to form attributes instead of keyword swaps", () => {
@@ -925,10 +928,10 @@ test("rendered AI output contains copyable cards", () => {
   assert.match(html, /开场话术/);
   assert.match(html, /推荐聊天话题/);
   assert.match(html, /模拟老板回复/);
-  assert.match(html, /情绪变化/);
-  assert.match(html, /信号解读/);
-  assert.match(html, /下一句建议/);
-  assert.match(html, /不建议说的话/);
+  assert.match(html, /他现在/);
+  assert.match(html, /看出来/);
+  assert.match(html, /你接/);
+  assert.match(html, /别踩/);
   assert.match(html, /data-copy=/);
   assert.match(html, /data-favorite-text=/);
 });

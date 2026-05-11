@@ -16,6 +16,16 @@ git checkout v0.12.0
 
 生产环境建议优先用 `git revert <commit>` 回滚问题提交，不建议直接 `git reset --hard`。
 
+## v0.22.0 - 模拟对话和分析去 AI 味
+
+提交：`v0.22.0` tag 指向的 `fix: reduce ai tone in simulator`
+
+- 情景模拟折叠区从“情绪变化 / 信号解读 / 下一句建议”改成“他现在 / 看出来 / 你接 / 别踩”
+- 本地模拟分析改成陪玩小抄口吻，去掉“长期记忆命中、老板人格蒸馏、对话连续性”等报告腔
+- 老板回复和分析都减少“策略、方案、推进、建议你可以”等 AI 味词
+- 服务端 prompt 要求 simulate 分析字段用口语短句，不写心理分析报告
+- 自动测试覆盖小抄文案、去术语 prompt 和旧 AI 味标签回归
+
 ## v0.21.0 - 降低模拟聊天僵硬感
 
 提交：`v0.21.0` tag 指向的 `fix: make simulator chat more natural`

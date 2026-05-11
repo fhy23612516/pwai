@@ -1424,11 +1424,11 @@ function renderSimulationMessage(message) {
   const detail = message.output
     ? `
       <details class="chat-analysis">
-        <summary>本轮提示</summary>
-        ${message.output.emotionShift ? `<div><strong>情绪变化</strong><span>${escapeHtml(message.output.emotionShift)}</span></div>` : ""}
-        ${message.output.readSignal ? `<div><strong>信号解读</strong><span>${escapeHtml(message.output.readSignal)}</span></div>` : ""}
-        ${message.output.nextSuggestion ? `<div><strong>下一句建议</strong><span>${escapeHtml(message.output.nextSuggestion)}</span></div>` : ""}
-        ${message.output.avoid?.length ? `<div><strong>避免</strong><span>${escapeHtml(message.output.avoid.join("\n"))}</span></div>` : ""}
+        <summary>小抄</summary>
+        ${message.output.emotionShift ? `<div><strong>他现在</strong><span>${escapeHtml(message.output.emotionShift)}</span></div>` : ""}
+        ${message.output.readSignal ? `<div><strong>看出来</strong><span>${escapeHtml(message.output.readSignal)}</span></div>` : ""}
+        ${message.output.nextSuggestion ? `<div><strong>你接</strong><span>${escapeHtml(message.output.nextSuggestion)}</span></div>` : ""}
+        ${message.output.avoid?.length ? `<div><strong>别踩</strong><span>${escapeHtml(message.output.avoid.join("\n"))}</span></div>` : ""}
       </details>
     `
     : "";
@@ -2420,39 +2420,38 @@ function generateSimulate(payload) {
   });
 
   const emotionShift = lines([
-    `${name}当前更像${typeText}里的${quiet ? "低回应状态" : angry ? "上头状态" : fun ? "可互动状态" : "观察状态"}，本轮按“${persona.styleLabel}”来模拟。`,
-    intent.label ? `你这一句更像在${intent.label}，所以老板回复要接当前话题，而不是复读固定模板。` : "",
-    relationship ? `关系信号：${relationship.label}，陪玩当前设置是“${relationship.mode}”。` : "",
-    gameState ? `局势影响：${gameState} 会让他更关注你是否能马上给到有效陪伴。` : "",
+    simulateMoodLine(name, quiet, angry, fun, persona),
+    intent.label ? `你这句是在${intent.label}，别接成一段说明文。` : "",
+    relationship ? relationshipShortLine(relationship) : "",
+    gameState ? `他现在还惦记着局里这点：${gameState}。` : "",
   ]);
 
   const readSignal = lines([
-    memoryText ? `长期记忆命中：${memoryText}` : "",
-    recentMemoryText ? `近期记忆命中：${recentMemoryText}` : "",
-    chatHistory.length ? `对话连续性：这是第 ${previousPlayerTurns + 1} 轮陪玩发言，要接住上一轮语气，不要像重新开场。` : "",
-    `老板人格蒸馏：${persona.reading}`,
-    playerMessage.includes("吗") ? "你的话里有提问，老板低回应时可能只回短句；可以准备一个不用他多解释的下一句。" : "你的话不算强压，可以继续观察他是否主动接话。",
-    relationship ? `关系互动不要只看关键词，要按 relationship_mode 判断推进、轻接还是不接。` : "",
+    memoryText ? `记着他的老习惯：${compactBossMemoryForChat(boss)}` : "",
+    recentMemoryText ? `最近那点也别丢：${compactRecentMemoryForChat(recentMemoryText)}` : "",
+    chatHistory.length ? `已经聊到第 ${previousPlayerTurns + 1} 轮了，别突然换成客服口吻。` : "",
+    persona.reading ? `这个老板大概是：${persona.reading}。` : "",
+    playerMessage.includes("吗") ? "你问得有点多的话，他可能只回很短，下一句给个轻选择就行。" : "这句压力不大，先看他愿不愿意多回。",
   ]);
 
   const nextSuggestion = relationship
     ? lines([
-        relationship.hardRisk ? "下一句直接收回到正常游戏，不继续接硬风险话题。" : `下一句按“${relationship.mode}”走：${relationship.reply.split("\n")[0]}`,
-        "再补一句游戏信息或当前安排，避免只围着关系话题打转。",
+        relationship.hardRisk ? "直接收回来：这个不聊了，开下一把吧。" : relationshipNextLine(relationship),
+        "后面补一句游戏里的事，别一直围着关系聊。",
       ])
     : angry
       ? lines([
-          "下一句先承认局势，不讲大道理。",
-          gameState ? `可说：刚才${gameState}，这把我先多报关键点，咱们先把开局稳住。` : "可说：刚才那几把先过去，这把我多报关键点，咱们先稳开局。",
+          "别讲道理，先把话压短。",
+          gameState ? `可以说：刚才${gameState}，这把我多报关键点。` : "可以说：刚才先过去，这把我多报关键点。",
         ])
       : quiet
         ? lines([
-            "下一句减少问题，给他空间。",
-            "可说：你今天话少也没事，我先多看信息，咱们按舒服的节奏来。",
+            "少问一句，给他空间。",
+            "可以说：你今天话少也没事，我先看信息。",
           ])
         : lines([
-            "下一句可以轻接他的状态，再给一个具体玩法安排。",
-            "可说：那先轻松热两把，我看你今天更想快乐局还是认真冲。",
+            "轻轻接一下，再给个选择。",
+            "可以说：那先热两把，你想快乐点还是认真冲？",
           ]);
 
   return {
@@ -2461,13 +2460,58 @@ function generateSimulate(payload) {
     readSignal,
     nextSuggestion,
     avoid: [
-      relationship?.hardRisk ? "继续接色情、违法、胁迫、未成年或隐私勒索话题。（硬风险）" : "",
-      relationship && !relationship.hardRisk ? "没确认自己营业尺度就直接答应现实关系推进。（容易和需求不一致）" : "",
-      angry ? "刚输就长篇复盘他的问题。（容易顶情绪）" : "",
-      quiet ? "连续追问为什么不说话。（会把沉默变成压力）" : "",
-      "只按老板名或游戏名替换模板，不结合长期记忆和当前情绪。",
+      relationship?.hardRisk ? "别继续接那种越界话题。" : "",
+      relationship && !relationship.hardRisk ? "别一口答应见面或恋爱，先看你自己接不接。" : "",
+      angry ? "别刚输就复盘他哪里错。" : "",
+      quiet ? "别连着问他为什么不说话。" : "",
+      "别像换个老板名的模板。",
     ].filter(Boolean),
   };
+}
+
+function simulateMoodLine(name, quiet, angry, fun, persona) {
+  if (angry) return `${name}现在还有点烦，能听短句，听不进大道理。`;
+  if (quiet || persona.slow) return `${name}现在像是想安静打，不太想被追着聊。`;
+  if (fun || persona.playful) return `${name}这会儿还能接梗，但别突然变正经。`;
+  if (persona.relationship) return `${name}是在试你怎么接近一点，不一定真要马上推进。`;
+  if (persona.confiding) return `${name}更像是想有人陪着，不想被安排一堆话。`;
+  return `${name}还在看你说话自然不自然。`;
+}
+
+function relationshipShortLine(relationship) {
+  if (relationship.hardRisk) return "这类话题直接收住。";
+  if (relationship.mode === "可恋爱感营业") return "可以轻轻接一点亲近感，但别承诺太满。";
+  if (relationship.mode === "只轻微暧昧") return "能接一点玩笑，别往现实关系推。";
+  if (relationship.mode === "不做恋爱感") return "接住尴尬就行，别往恋爱感走。";
+  return "你还没定营业尺度，先别说死。";
+}
+
+function relationshipNextLine(relationship) {
+  if (relationship.mode === "可恋爱感营业") return "可以说：那今天先偏心你一点，别光嘴上说。";
+  if (relationship.mode === "只轻微暧昧") return "可以说：你别突然太认真，我就轻轻接一下。";
+  if (relationship.mode === "不做恋爱感") return "可以说：我刚才有点不好意思，先打游戏。";
+  return "可以说：先不聊那么远，今天先打舒服点。";
+}
+
+function compactBossMemoryForChat(boss) {
+  return firstValue(
+    [
+      boss.memory_recent_signals,
+      boss.memory_relationship,
+      boss.memory_interaction_style,
+      boss.memory_profile,
+      boss.memory_direction,
+      boss.preferred_style,
+    ].filter(Boolean).join("\n"),
+    "先看他接话速度",
+  );
+}
+
+function compactRecentMemoryForChat(text) {
+  return String(text || "")
+    .split("\n")
+    .map((line) => line.replace(/^近期订单：/, "").replace(/^近期求助：/, "").trim())
+    .filter(Boolean)[0] || "先按最近一次舒服的节奏来";
 }
 
 function inferBossChatPersona(boss = {}, context = {}) {
@@ -2835,16 +2879,16 @@ function renderOutput(output) {
     ["活泼版本", output.lively],
     ["技术版本", output.technical],
     ["模拟老板回复", output.bossReply],
-    ["情绪变化", output.emotionShift],
-    ["信号解读", output.readSignal],
-    ["下一句建议", output.nextSuggestion],
+    ["他现在", output.emotionShift],
+    ["看出来", output.readSignal],
+    ["你接", output.nextSuggestion],
     ["本次订单总结", output.summary],
     ["老板画像更新建议", formatProfileUpdate(output.profileUpdate)],
     ["下次开场话术", output.nextOpening],
     ["下次联系建议", output.nextContact],
     ["复购概率", output.repurchase],
     ["陪玩表现建议", output.performance],
-    ["不建议说的话", output.avoid],
+    ["别踩", output.avoid],
     ["补充提醒", output.note],
   ].filter(([, value]) => value && (!Array.isArray(value) || value.length));
 
