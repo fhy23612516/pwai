@@ -92,7 +92,10 @@ Nginx 安装脚本默认使用：
 ```text
 AUTH_USERS_FILE=/etc/pwai/users.json
 AUTH_DATA_FILE=/etc/pwai/app-data.json
+ACCESS_LOG_FILE=/etc/pwai/access-log.json
+ACCESS_LOG_MAX_ENTRIES=1000
 AUTH_ALLOW_REGISTRATION=true
+AUTH_ADMIN_USERS=你的管理员账号
 AUTH_SESSION_SECRET=一串随机字符
 AUTH_SESSION_TTL_SECONDS=604800
 AUTH_COOKIE_NAME=pwai_session
@@ -132,17 +135,26 @@ AUTH_ALLOW_REGISTRATION=false
 
 老板档案、订单、话术收藏、AI 设置等应用数据会按账号保存到 `AUTH_DATA_FILE`，默认建议放在 `/etc/pwai/app-data.json`。同一账号换设备登录时，会通过 `/api/state` 读取这份服务器数据；如果服务器上还没有数据，旧版本浏览器里的本地数据会在登录后自动上传一次。
 
+访问 IP 记录会保存到 `ACCESS_LOG_FILE`，默认建议放在 `/etc/pwai/access-log.json`。服务端会记录访问时间、IP、路径、请求方法、登录账号和浏览器 UA，不记录请求体和密码。设置页里的“访问 IP 记录”只对 `AUTH_ADMIN_USERS` 中的账号显示；多个管理员账号用英文逗号分隔：
+
+```text
+AUTH_ADMIN_USERS=admin,alice_01
+```
+
+如果通过 Nginx 反向代理访问，服务端会优先读取 `X-Forwarded-For` / `X-Real-IP`。当前仓库的 Nginx 模板已经传递这些头。
+
 `/api/state` 默认允许最大 1MB 数据，可用下面变量调整：
 
 ```text
 APP_STATE_MAX_BYTES=1048576
 ```
 
-这两个文件都要纳入服务器备份：
+这些文件都要纳入服务器备份：
 
 ```bash
 sudo cp /etc/pwai/users.json /etc/pwai/users.json.bak
 sudo cp /etc/pwai/app-data.json /etc/pwai/app-data.json.bak
+sudo cp /etc/pwai/access-log.json /etc/pwai/access-log.json.bak
 ```
 
 如果你还没配置 HTTPS 域名，只用 `http://服务器IP:端口` 测试，先用：

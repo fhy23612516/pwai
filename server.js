@@ -14,12 +14,15 @@ const aiMaxOutputTokens = Number(process.env.OPENAI_MAX_OUTPUT_TOKENS || 1200);
 const defaultBaseUrl = "https://api.openai.com/v1";
 const authUsersFile = process.env.AUTH_USERS_FILE || path.join(process.env.AUTH_DATA_DIR || "/etc/pwai", "users.json");
 const appDataFile = process.env.AUTH_DATA_FILE || path.join(process.env.AUTH_DATA_DIR || "/etc/pwai", "app-data.json");
+const accessLogFile = process.env.ACCESS_LOG_FILE || path.join(process.env.AUTH_DATA_DIR || "/etc/pwai", "access-log.json");
+const accessLogMaxEntries = Number(process.env.ACCESS_LOG_MAX_ENTRIES || 1000);
 const authAllowRegistration = !["0", "false", "no", "off"].includes(String(process.env.AUTH_ALLOW_REGISTRATION ?? "true").toLowerCase());
 const authCookieName = sanitizeCookieName(process.env.AUTH_COOKIE_NAME || "pwai_session");
 const authSessionSecret = process.env.AUTH_SESSION_SECRET || process.env.AUTH_PASSWORD || "pwai-dev-session-secret";
 const authSessionTtlSeconds = Number(process.env.AUTH_SESSION_TTL_SECONDS || 604800);
 const authCookieSecure = parseBoolean(process.env.AUTH_COOKIE_SECURE);
 const authUsernamePattern = /^[A-Za-z0-9_-]{3,32}$/;
+const authAdminUsers = parseList(process.env.AUTH_ADMIN_USERS).map(normalizeUsername);
 
 const outputSchemas = {
   prep: {
@@ -122,6 +125,7 @@ function resolveRequestPath(urlPath) {
 
 const server = http.createServer((request, response) => {
   const requestPath = getRequestPath(request);
+  recordAccess(request);
 
   if (requestPath === "/healthz") {
     sendJson(response, 200, { ok: true, service: "pwai" });
@@ -165,6 +169,11 @@ const server = http.createServer((request, response) => {
 
   if (requestPath === "/api/state") {
     handleStateRequest(request, response);
+    return;
+  }
+
+  if (requestPath === "/api/access-log") {
+    handleAccessLogRequest(request, response);
     return;
   }
 
@@ -265,6 +274,11 @@ function getSessionFromRequest(request) {
   return getSessionFromToken(getSessionTokenFromRequest(request));
 }
 
+function isAdminSession(session) {
+  if (!session) return false;
+  return authAdminUsers.includes(normalizeUsername(session.username));
+}
+
 function ensureUsersFile() {
   const directory = path.dirname(authUsersFile);
   fs.mkdirSync(directory, { recursive: true });
@@ -317,6 +331,79 @@ function writeAppDataStore(store) {
   const temporaryPath = `${appDataFile}.${process.pid}.tmp`;
   fs.writeFileSync(temporaryPath, JSON.stringify({ users: store.users || {} }, null, 2));
   fs.renameSync(temporaryPath, appDataFile);
+}
+
+function ensureAccessLogFile() {
+  const directory = path.dirname(accessLogFile);
+  fs.mkdirSync(directory, { recursive: true });
+  if (!fs.existsSync(accessLogFile)) {
+    fs.writeFileSync(accessLogFile, JSON.stringify({ entries: [] }, null, 2));
+  }
+}
+
+function readAccessLogStore() {
+  ensureAccessLogFile();
+  try {
+    const parsed = JSON.parse(fs.readFileSync(accessLogFile, "utf8"));
+    return {
+      entries: Array.isArray(parsed.entries) ? parsed.entries : [],
+    };
+  } catch {
+    return { entries: [] };
+  }
+}
+
+function writeAccessLogStore(store) {
+  ensureAccessLogFile();
+  const maxEntries = Number.isFinite(accessLogMaxEntries) && accessLogMaxEntries > 0 ? accessLogMaxEntries : 1000;
+  const temporaryPath = `${accessLogFile}.${process.pid}.tmp`;
+  fs.writeFileSync(temporaryPath, JSON.stringify({ entries: (store.entries || []).slice(0, maxEntries) }, null, 2));
+  fs.renameSync(temporaryPath, accessLogFile);
+}
+
+function recordAccess(request) {
+  const requestPath = getRequestPath(request);
+  if (shouldSkipAccessLog(requestPath)) return;
+  const session = getSessionFromRequest(request);
+  const entry = {
+    id: crypto.randomUUID(),
+    at: new Date().toISOString(),
+    ip: getClientIp(request),
+    method: request.method || "GET",
+    path: requestPath,
+    username: session?.username || "",
+    user_id: session?.user_id || "",
+    user_agent: String(request.headers["user-agent"] || "").slice(0, 180),
+  };
+  try {
+    const store = readAccessLogStore();
+    store.entries.unshift(entry);
+    writeAccessLogStore(store);
+  } catch (error) {
+    console.error("[access-log]", error.message || error);
+  }
+}
+
+function shouldSkipAccessLog(requestPath) {
+  if (requestPath === "/healthz" || requestPath === "/api/access-log") return true;
+  return /\.(css|js|png|jpe?g|webp|svg|ico|map)$/i.test(requestPath);
+}
+
+function getClientIp(request) {
+  const forwardedFor = String(request.headers["x-forwarded-for"] || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean)[0];
+  const realIp = String(request.headers["x-real-ip"] || "").trim();
+  const socketIp = request.socket?.remoteAddress || "";
+  return normalizeIp(forwardedFor || realIp || socketIp || "unknown");
+}
+
+function normalizeIp(ip) {
+  const text = String(ip || "unknown").trim();
+  if (text.startsWith("::ffff:")) return text.slice(7);
+  if (text === "::1") return "127.0.0.1";
+  return text || "unknown";
 }
 
 function getUserAppState(userId) {
@@ -393,6 +480,7 @@ function publicUser(user) {
     id: user.id,
     username: user.username,
     created_at: user.created_at,
+    is_admin: authAdminUsers.includes(normalizeUsername(user.username)),
   };
 }
 
@@ -582,8 +670,53 @@ function handleSessionRequest(request, response) {
     auth_enabled: isAuthEnabled(),
     registration_enabled: authAllowRegistration,
     authenticated: Boolean(session),
-    user: session ? { id: session.user_id, username: session.username } : null,
+    user: session ? { id: session.user_id, username: session.username, is_admin: isAdminSession(session) } : null,
   });
+}
+
+function handleAccessLogRequest(request, response) {
+  const session = getSessionFromRequest(request);
+  if (!session) {
+    sendAuthRequired(request, response);
+    return;
+  }
+  if (!isAdminSession(session)) {
+    sendJson(response, 403, { ok: false, error: "ADMIN_REQUIRED", message: "Admin account required." });
+    return;
+  }
+  if (request.method !== "GET") {
+    sendJson(response, 405, { ok: false, error: "METHOD_NOT_ALLOWED" });
+    return;
+  }
+
+  const url = new URL(request.url || "/api/access-log", "http://127.0.0.1");
+  const limit = Math.min(Math.max(Number(url.searchParams.get("limit") || 100), 1), 500);
+  const ipFilter = String(url.searchParams.get("ip") || "").trim();
+  const usernameFilter = normalizeUsername(url.searchParams.get("username") || "");
+  let entries = readAccessLogStore().entries;
+  if (ipFilter) {
+    entries = entries.filter((entry) => String(entry.ip || "").includes(ipFilter));
+  }
+  if (usernameFilter) {
+    entries = entries.filter((entry) => normalizeUsername(entry.username || "") === usernameFilter);
+  }
+  sendJson(response, 200, {
+    ok: true,
+    entries: entries.slice(0, limit).map(publicAccessLogEntry),
+    total: entries.length,
+    limit,
+  });
+}
+
+function publicAccessLogEntry(entry) {
+  return {
+    at: entry.at || "",
+    ip: entry.ip || "unknown",
+    method: entry.method || "",
+    path: entry.path || "",
+    username: entry.username || "",
+    user_agent: entry.user_agent || "",
+  };
 }
 
 async function handleStateRequest(request, response) {
@@ -969,6 +1102,13 @@ function selectModel(kind) {
 
 function parseBoolean(value) {
   return ["1", "true", "yes", "on"].includes(String(value || "").toLowerCase());
+}
+
+function parseList(value) {
+  return String(value || "")
+    .split(/[,\n，]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function sanitizeCookieName(value) {

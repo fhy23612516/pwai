@@ -59,6 +59,7 @@ curl http://127.0.0.1:4173/healthz
 - AI 生成内容强化为多条可复制话术和具体临场判断，减少模板化表达
 - AI 生成会读取本单表单属性，避免只做关键词替换
 - 账号注册 / 登录，支持网页 Cookie 和小程序 Bearer token
+- 管理员访问 IP 记录，按服务器文件保存最近访问时间、IP、路径和登录账号
 - 内置 Node 静态服务器和 `/healthz` 健康检查
 
 AI 接口契约见 [docs/ai-contract.md](./docs/ai-contract.md)。

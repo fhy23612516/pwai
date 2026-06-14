@@ -379,11 +379,12 @@ sudo systemctl restart pwai
 - 不要把 AI API Key 写入前端代码或 GitHub
 - 账号文件只放服务器本地，例如 `/etc/pwai/users.json`，不要提交到 GitHub
 - 老板档案、订单、收藏和设置按账号保存到服务器本地，例如 `/etc/pwai/app-data.json`，也不要提交到 GitHub
+- 访问 IP 记录保存到服务器本地，例如 `/etc/pwai/access-log.json`，也不要提交到 GitHub
 - 网页和小程序后续共用服务端 `/api/ai`
 - 网页注册 / 登录使用服务端 `HttpOnly` Cookie；小程序可用 `/api/login` 返回的 token 走 `Authorization: Bearer <token>`
 - 模型密钥只放服务器环境变量，例如 `/etc/pwai/pwai.env` 里的 `OPENAI_API_KEY`
 - 中转站 API 在 `/etc/pwai/pwai.env` 配置 `OPENAI_BASE_URL`、`OPENAI_MODEL`、`AI_API_MODE=chat`
-- 可用 `OPENAI_MODEL_PREP`、`OPENAI_MODEL_ASSIST`、`OPENAI_MODEL_REVIEW` 按场景选择模型
+- 可用 `OPENAI_MODEL_PREP`、`OPENAI_MODEL_ASSIST`、`OPENAI_MODEL_SIMULATE`、`OPENAI_MODEL_REVIEW` 按场景选择模型
 - 可用 `OPENAI_MAX_OUTPUT_TOKENS` 调整 AI 输出长度，默认 `1200`
 - 如果中转站使用 Responses 协议，可配置 `AI_API_MODE=responses`、`OPENAI_REASONING_EFFORT=xhigh`、`OPENAI_DISABLE_RESPONSE_STORAGE=true`
 - 如果 Node `fetch` 连中转站超时但系统 `curl` 可用，配置 `AI_HTTP_CLIENT=curl`

@@ -212,8 +212,11 @@ test("deployment files expose start script and health check", () => {
   assert.match(server, /\/api\/logout/);
   assert.match(server, /\/api\/session/);
   assert.match(server, /\/api\/state/);
+  assert.match(server, /\/api\/access-log/);
   assert.match(server, /AUTH_USERS_FILE/);
   assert.match(server, /AUTH_DATA_FILE/);
+  assert.match(server, /ACCESS_LOG_FILE/);
+  assert.match(server, /AUTH_ADMIN_USERS/);
   assert.match(server, /APP_STATE_MAX_BYTES/);
   assert.match(server, /AUTH_ALLOW_REGISTRATION/);
   assert.match(server, /AUTH_SESSION_SECRET/);
@@ -223,6 +226,8 @@ test("deployment files expose start script and health check", () => {
   assert.match(server, /Authorization/);
   assert.match(server, /Bearer/);
   assert.match(server, /AUTH_REQUIRED/);
+  assert.match(server, /ADMIN_REQUIRED/);
+  assert.match(server, /X-Forwarded-For|x-forwarded-for/);
   assert.match(server, /AI_PROVIDER_NOT_CONFIGURED/);
   assert.match(server, /chat\/completions/);
   assert.match(server, /AI_API_MODE/);
@@ -287,6 +292,7 @@ test("versioned server config templates target the deployed service", () => {
   assert.match(env, /OPENAI_MODEL=gpt-4o-mini/);
   assert.match(env, /OPENAI_MODEL_PREP=/);
   assert.match(env, /OPENAI_MODEL_ASSIST=/);
+  assert.match(env, /OPENAI_MODEL_SIMULATE=/);
   assert.match(env, /OPENAI_MODEL_REVIEW=/);
   assert.match(env, /OPENAI_MAX_OUTPUT_TOKENS=1200/);
   assert.match(env, /AI_API_MODE=chat/);
@@ -294,8 +300,11 @@ test("versioned server config templates target the deployed service", () => {
   assert.match(env, /AI_HTTP_CLIENT=fetch/);
   assert.match(env, /AUTH_USERS_FILE=\/etc\/pwai\/users\.json/);
   assert.match(env, /AUTH_DATA_FILE=\/etc\/pwai\/app-data\.json/);
+  assert.match(env, /ACCESS_LOG_FILE=\/etc\/pwai\/access-log\.json/);
+  assert.match(env, /ACCESS_LOG_MAX_ENTRIES=1000/);
   assert.match(env, /APP_STATE_MAX_BYTES=1048576/);
   assert.match(env, /AUTH_ALLOW_REGISTRATION=true/);
+  assert.match(env, /AUTH_ADMIN_USERS=/);
   assert.match(env, /AUTH_SESSION_SECRET=/);
   assert.match(env, /AUTH_SESSION_TTL_SECONDS=604800/);
   assert.match(env, /AUTH_COOKIE_NAME=pwai_session/);
@@ -328,6 +337,9 @@ test("account auth is documented and exposed in settings", () => {
   assert.match(app, /\/api\/logout/);
   assert.match(app, /window\.location\.assign\("\/login"\)/);
   assert.match(app, /\/api\/state/);
+  assert.match(app, /\/api\/access-log/);
+  assert.match(app, /data-refresh-access-log/);
+  assert.match(app, /currentUser\?\.is_admin/);
   assert.match(app, /saveStateRemoteNow/);
   assert.match(app, /remoteStateReady/);
   assert.match(readme, /账号注册 \/ 登录/);
@@ -336,6 +348,8 @@ test("account auth is documented and exposed in settings", () => {
   assert.match(deployDoc, /账号注册和登录/);
   assert.match(deployDoc, /AUTH_USERS_FILE=\/etc\/pwai\/users\.json/);
   assert.match(deployDoc, /AUTH_DATA_FILE=\/etc\/pwai\/app-data\.json/);
+  assert.match(deployDoc, /ACCESS_LOG_FILE=\/etc\/pwai\/access-log\.json/);
+  assert.match(deployDoc, /AUTH_ADMIN_USERS/);
   assert.match(deployDoc, /老板档案、订单、话术收藏、AI 设置/);
   assert.match(deployDoc, /\/api\/register/);
   assert.match(deployDoc, /\/api\/login/);
@@ -344,7 +358,9 @@ test("account auth is documented and exposed in settings", () => {
   assert.match(deployDoc, /Authorization: Bearer <token>/);
   assert.match(githubDeployDoc, /users\.json/);
   assert.match(githubDeployDoc, /app-data\.json/);
+  assert.match(githubDeployDoc, /access-log\.json/);
   assert.match(githubDeployDoc, /HttpOnly/);
+  assert.match(githubDeployDoc, /OPENAI_MODEL_SIMULATE/);
   assert.match(githubDeployDoc, /OPENAI_MAX_OUTPUT_TOKENS/);
 });
 

@@ -16,6 +16,17 @@ git checkout v0.12.0
 
 生产环境建议优先用 `git revert <commit>` 回滚问题提交，不建议直接 `git reset --hard`。
 
+## v0.23.0 - 管理员访问 IP 记录
+
+提交：`v0.23.0` tag 指向的 `feat: add admin access ip log`
+
+- 服务端新增访问记录文件 `ACCESS_LOG_FILE`，默认建议 `/etc/pwai/access-log.json`
+- 记录最近访问时间、IP、路径、请求方法、登录账号和浏览器 UA，不记录请求体和密码
+- 新增 `AUTH_ADMIN_USERS`，只有管理员账号可以访问 `/api/access-log` 和设置页访问记录
+- 前端设置页新增“访问 IP 记录”卡片，管理员可刷新查看最近访问
+- 支持反向代理下的 `X-Forwarded-For` / `X-Real-IP`
+- 自动测试覆盖管理员查询、普通用户 403、未登录 401 和反代 IP 读取
+
 ## v0.22.0 - 模拟对话和分析去 AI 味
 
 提交：`v0.22.0` tag 指向的 `fix: reduce ai tone in simulator`

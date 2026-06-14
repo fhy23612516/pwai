@@ -615,6 +615,8 @@ function renderHome() {
         </div>
       </section>
 
+      ${currentUser?.is_admin ? renderAccessLogPanel() : ""}
+
       <section class="card">
         <div class="card-header">
           <div>
@@ -1807,6 +1809,9 @@ function renderSettings() {
     toastMessage("已恢复示例数据");
     renderSettings();
   });
+  appView.querySelector("[data-refresh-access-log]")?.addEventListener("click", () => {
+    loadAccessLog();
+  });
   appView.querySelector("[data-logout]").addEventListener("click", async () => {
     try {
       await fetch("/api/logout", { method: "POST" });
@@ -1814,6 +1819,82 @@ function renderSettings() {
       window.location.assign("/login");
     }
   });
+  if (currentUser?.is_admin) loadAccessLog();
+}
+
+function renderAccessLogPanel() {
+  return `
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h3 class="card-title">访问 IP 记录</h3>
+          <p class="card-subtitle">仅管理员可见，用于排查谁访问过网站。</p>
+        </div>
+        <button class="ghost-button compact" type="button" data-refresh-access-log>刷新</button>
+      </div>
+      <div class="card-body">
+        <div id="access-log-list">
+          ${emptyState("等待读取", "正在从服务器读取最近访问记录。")}
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+async function loadAccessLog() {
+  const target = appView.querySelector("#access-log-list");
+  if (!target) return;
+  target.innerHTML = emptyState("正在读取", "稍等一下。");
+  try {
+    const response = await fetch("/api/access-log?limit=100", { headers: { Accept: "application/json" } });
+    const data = await response.json();
+    if (response.status === 401) {
+      window.location.assign("/login");
+      return;
+    }
+    if (!response.ok || data.ok === false) {
+      throw new Error(data.message || data.error || "访问记录读取失败");
+    }
+    target.innerHTML = renderAccessLogEntries(data.entries || []);
+  } catch (error) {
+    target.innerHTML = emptyState("读取失败", error.message || "访问记录读取失败。");
+  }
+}
+
+function renderAccessLogEntries(entries) {
+  if (!entries.length) {
+    return emptyState("暂无访问记录", "有用户访问后这里会显示 IP 和路径。");
+  }
+  return `
+    <div class="list compact-list">
+      ${entries.map(renderAccessLogEntry).join("")}
+    </div>
+  `;
+}
+
+function renderAccessLogEntry(entry) {
+  const user = entry.username || "未登录";
+  const ua = entry.user_agent ? ` · ${entry.user_agent}` : "";
+  return `
+    <article class="order-card">
+      <div class="order-card-head">
+        <div>
+          <h3>${escapeHtml(entry.ip || "unknown")}</h3>
+          <div class="meta">${escapeHtml(formatDateTime(entry.at))} · ${escapeHtml(user)}</div>
+        </div>
+        <span class="badge">${escapeHtml(entry.method || "GET")}</span>
+      </div>
+      <div>${escapeHtml(entry.path || "/")}</div>
+      <p class="hint">${escapeHtml(ua.replace(/^ · /, ""))}</p>
+    </article>
+  `;
+}
+
+function formatDateTime(value) {
+  if (!value) return "未知时间";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("zh-CN", { hour12: false });
 }
 
 function metricMini(label, value) {

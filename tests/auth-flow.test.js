@@ -8,12 +8,16 @@ const baseUrl = `http://127.0.0.1:${port}`;
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pwai-auth-"));
 const usersFile = path.join(tempDir, "users.json");
 const appDataFile = path.join(tempDir, "app-data.json");
+const accessLogFile = path.join(tempDir, "access-log.json");
 
 process.env.HOST = "127.0.0.1";
 process.env.PORT = String(port);
 process.env.AUTH_USERS_FILE = usersFile;
 process.env.AUTH_DATA_FILE = appDataFile;
+process.env.ACCESS_LOG_FILE = accessLogFile;
+process.env.ACCESS_LOG_MAX_ENTRIES = "50";
 process.env.AUTH_ALLOW_REGISTRATION = "true";
+process.env.AUTH_ADMIN_USERS = "alice_01";
 process.env.AUTH_SESSION_SECRET = "test-secret";
 process.env.AUTH_SESSION_TTL_SECONDS = "3600";
 process.env.AUTH_COOKIE_SECURE = "false";
@@ -100,6 +104,7 @@ async function main() {
     const registeredSession = await register.json();
     assert.equal(registeredSession.ok, true);
     assert.equal(registeredSession.user.username, "alice_01");
+    assert.equal(registeredSession.user.is_admin, true);
     assert.equal(typeof registeredSession.token, "string");
 
     const stored = JSON.parse(fs.readFileSync(usersFile, "utf8"));
@@ -134,10 +139,11 @@ async function main() {
     const session = await goodLogin.json();
     assert.equal(session.ok, true);
     assert.equal(session.user.username, "alice_01");
+    assert.equal(session.user.is_admin, true);
     assert.equal(typeof session.token, "string");
 
     const cookieHome = await request("/", {
-      headers: { Cookie: cookie },
+      headers: { Cookie: cookie, "X-Forwarded-For": "203.0.113.10, 10.0.0.1", "User-Agent": "pwai-test-agent" },
     });
     assert.equal(cookieHome.status, 200);
 
@@ -145,7 +151,34 @@ async function main() {
       headers: { Authorization: `Bearer ${session.token}` },
     });
     assert.equal(bearerSession.status, 200);
-    assert.equal((await bearerSession.json()).authenticated, true);
+    const bearerSessionJson = await bearerSession.json();
+    assert.equal(bearerSessionJson.authenticated, true);
+    assert.equal(bearerSessionJson.user.is_admin, true);
+
+    const anonymousAccessLog = await request("/api/access-log");
+    assert.equal(anonymousAccessLog.status, 401);
+
+    const adminAccessLog = await request("/api/access-log?limit=20", {
+      headers: { Authorization: `Bearer ${session.token}` },
+    });
+    assert.equal(adminAccessLog.status, 200);
+    const adminAccessLogJson = await adminAccessLog.json();
+    assert.equal(adminAccessLogJson.ok, true);
+    assert.ok(adminAccessLogJson.entries.some((entry) => entry.ip === "203.0.113.10" && entry.username === "alice_01" && entry.path === "/"));
+    assert.ok(fs.existsSync(accessLogFile));
+
+    const bobRegister = await request("/api/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: "bob_01", password: "test-pass-123" }),
+    });
+    assert.equal(bobRegister.status, 200);
+    const bobSession = await bobRegister.json();
+    assert.equal(bobSession.user.is_admin, false);
+    const bobAccessLog = await request("/api/access-log", {
+      headers: { Authorization: `Bearer ${bobSession.token}` },
+    });
+    assert.equal(bobAccessLog.status, 403);
 
     const anonymousState = await request("/api/state");
     assert.equal(anonymousState.status, 401);
